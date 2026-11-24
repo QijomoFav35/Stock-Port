@@ -14,7 +14,7 @@ npm run check-routes                  # can o1 and 0x each buy every basket stoc
 
 ## Deploy (Render)
 
-`render.yaml` is a Render Blueprint: Render dashboard → **New → Blueprint** → pick this repo, fill in the keys it asks for. After the first deploy, open `/api/geo`: it should show your country and `"tradingBlocked": false` (from outside the US). The US block reads the country through `lib/geo.ts`, which works on Render (ipinfo lookup), behind Cloudflare, or on Vercel.
+Create a normal Render **Web Service** from this repo: runtime Node, build command `npm ci && npm run build`, start command `npm start`, and add the env vars from `.env.example`. After the first deploy, open `/api/geo`: it should show your country and `"tradingBlocked": false` (from outside the US). The US block reads the country through `lib/geo.ts`, which works on Render (ipinfo lookup), behind Cloudflare, or on Vercel.
 
 ## What's here
 
