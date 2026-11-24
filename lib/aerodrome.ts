@@ -1,11 +1,11 @@
 /**
  * Direct Aerodrome Slipstream (concentrated liquidity) swaps: USDC → tokenized stock. No API key.
- * Same venue and router as Glacier and Circla on Base mainnet. The Coinbase stock/USDC liquidity
- * sits in these pools, so going direct skips an aggregator without losing depth.
+ * Uses Aerodrome's Slipstream swap router (the one Circla integrates). 0x is the fallback route and
+ * can reach pools on other Aerodrome factories too.
  *
  * Safety: the minimum output comes from the Coinbase Chainlink feed for that stock (published in
  * docs.base.org/specifications/b20/tokenized-stocks-on-base), not from the pool, so a thin or moved
- * pool can't fill far from the reference price. Pools are confirmed against the factory before use.
+ * pool can't fill far from the reference price. Pools come from the router's own factory.
  */
 import { encodeFunctionData, getAddress, type Address, type Hex } from "viem";
 import { publicClient } from "@/lib/publicClient";
@@ -14,27 +14,40 @@ import { USDC_BASE } from "@/lib/constants";
 export const AERODROME_ROUTER: Address = getAddress(
   process.env.AERODROME_ROUTER ?? "0x698Cb2b6dd822994581fEa6eA4Fc755d1363A92F",
 );
-export const AERODROME_CL_FACTORY: Address = getAddress(
-  process.env.AERODROME_CL_FACTORY ?? "0x9CB220581b91b0C83223012FE69688b92aD07a76",
-);
-
-/** Deepest USDC pool and Chainlink feed per stock (pools from Glacier's mainnet deploy, feeds from Base docs). */
-export const STOCK_ROUTES: Record<string, { pool: Address; feed: Address }> = {
-  NVDAc: { pool: "0xF668e21993f0ACd7ab00BB1cFbAeD0df28A3C8EC", feed: "0x04689a41629776563E6822F76f2e57D148d28513" },
-  GOOGLc: { pool: "0x16c70F04C3080a127486Cdf5a4C33c066bBF47C3", feed: "0x5bF49E0ffA937CE2FfF033c739aD7C634c4D34F2" },
-  METAc: { pool: "0xd072410fa13D242e1d53721Bcf7AF02e3455DC96", feed: "0x6526aE6797A76123638b863AeE4dD27Ba4E4b27D" },
-  AAPLc: { pool: "0xF5FCB9CDAFcE67d50AfEf298F88E709d2B946BA6", feed: "0x787f13dEa48Db0897CbCDD985de77809D837F988" },
-  MSFTc: { pool: "0x2740C0faAb738F6e346e545fDE02aEF9B1A01ee7", feed: "0xeB10A6c9aa7E537aEd766C08c35Dae35B321b18c" },
-  TSLAc: { pool: "0x7A33000372f3F028f074182CCb9d16cBEEfBF920", feed: "0xFaf869185383a24F8cb00e27BdA6b63B9905DCb4" },
-  AMZNc: { pool: "0x532e0F46d1e528507FC9454d5847C231f23bDDf6", feed: "0x06A8E4b3aBB3B7543d8396FB2B763d22820cB295" },
+/**
+ * Chainlink feed per stock (docs.base.org/specifications/b20/tokenized-stocks-on-base).
+ * Pools are NOT hard-coded: Aerodrome has more than one CL factory on Base and a router only
+ * swaps through pools of its own factory. We ask the router for its factory, then pick the
+ * USDC pool with the most USDC across that factory's tick spacings.
+ */
+export const STOCK_FEEDS: Record<string, Address> = {
+  NVDAc: "0x04689a41629776563E6822F76f2e57D148d28513",
+  GOOGLc: "0x5bF49E0ffA937CE2FfF033c739aD7C634c4D34F2",
+  METAc: "0x6526aE6797A76123638b863AeE4dD27Ba4E4b27D",
+  AAPLc: "0x787f13dEa48Db0897CbCDD985de77809D837F988",
+  MSFTc: "0xeB10A6c9aa7E537aEd766C08c35Dae35B321b18c",
+  TSLAc: "0xFaf869185383a24F8cb00e27BdA6b63B9905DCb4",
+  AMZNc: "0x06A8E4b3aBB3B7543d8396FB2B763d22820cB295",
 };
 
-const poolAbi = [
-  { type: "function", name: "tickSpacing", stateMutability: "view", inputs: [], outputs: [{ type: "int24" }] },
-  { type: "function", name: "token0", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
-  { type: "function", name: "token1", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+/** Skip pools thinner than this (USDC, 6 decimals). The Chainlink floor on min-out still protects every buy. */
+const MIN_POOL_USDC = 1_000n * 10n ** 6n;
+const FALLBACK_TICK_SPACINGS = [1, 10, 50, 100, 200, 2000];
+
+const routerFactoryAbi = [
+  { type: "function", name: "factory", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+] as const;
+const balanceAbi = [
+  { type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] },
 ] as const;
 const factoryAbi = [
+  {
+    type: "function",
+    name: "tickSpacings",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ type: "int24[]" }],
+  },
   {
     type: "function",
     name: "getPool",
@@ -103,28 +116,15 @@ export async function buildAerodromeBuys(p: {
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
   return Promise.all(
     p.legs.map(async (leg) => {
-      const route = STOCK_ROUTES[leg.symbol];
-      if (!route) throw new Error(`No Aerodrome route configured for ${leg.symbol}`);
-      const [tickSpacing, t0, t1, round, feedDecimals] = await Promise.all([
-        publicClient.readContract({ address: route.pool, abi: poolAbi, functionName: "tickSpacing" }),
-        publicClient.readContract({ address: route.pool, abi: poolAbi, functionName: "token0" }),
-        publicClient.readContract({ address: route.pool, abi: poolAbi, functionName: "token1" }),
-        publicClient.readContract({ address: route.feed, abi: feedAbi, functionName: "latestRoundData" }),
-        publicClient.readContract({ address: route.feed, abi: feedAbi, functionName: "decimals" }),
+      const feed = STOCK_FEEDS[leg.symbol];
+      if (!feed) throw new Error(`No price feed configured for ${leg.symbol}`);
+      const [best, round, feedDecimals] = await Promise.all([
+        findDeepestPool(leg.token),
+        publicClient.readContract({ address: feed, abi: feedAbi, functionName: "latestRoundData" }),
+        publicClient.readContract({ address: feed, abi: feedAbi, functionName: "decimals" }),
       ]);
-      const pair = [t0.toLowerCase(), t1.toLowerCase()];
-      if (!pair.includes(USDC_BASE.toLowerCase()) || !pair.includes(leg.token.toLowerCase())) {
-        throw new Error(`${leg.symbol}: pool ${route.pool} is not a USDC/${leg.symbol} pool`);
-      }
-      const canonical = await publicClient.readContract({
-        address: AERODROME_CL_FACTORY,
-        abi: factoryAbi,
-        functionName: "getPool",
-        args: [USDC_BASE, leg.token, tickSpacing],
-      });
-      if (canonical.toLowerCase() !== route.pool.toLowerCase()) {
-        throw new Error(`${leg.symbol}: pool is not registered with the Aerodrome factory`);
-      }
+      if (!best) throw new Error(`${leg.symbol}: no Aerodrome USDC pool with enough liquidity`);
+      const tickSpacing = best.tickSpacing;
       const answer = round[1];
       if (answer <= 0n) throw new Error(`${leg.symbol}: price feed returned no price`);
 
@@ -160,4 +160,42 @@ export async function buildAerodromeBuys(p: {
       };
     }),
   );
+}
+
+let factoryPromise: Promise<Address> | undefined;
+/** The CL factory this router swaps through (read on chain, cached per server process). */
+export function routerFactory(): Promise<Address> {
+  factoryPromise ??= publicClient
+    .readContract({ address: AERODROME_ROUTER, abi: routerFactoryAbi, functionName: "factory" })
+    .catch((e) => {
+      factoryPromise = undefined;
+      throw e;
+    });
+  return factoryPromise;
+}
+
+/** The router-compatible USDC/stock pool holding the most USDC, or undefined if none is deep enough. */
+export async function findDeepestPool(
+  token: Address,
+): Promise<{ pool: Address; tickSpacing: number; usdc: bigint } | undefined> {
+  const factory = await routerFactory();
+  const spacings = await publicClient
+    .readContract({ address: factory, abi: factoryAbi, functionName: "tickSpacings" })
+    .then((t) => t.map(Number))
+    .catch(() => FALLBACK_TICK_SPACINGS);
+  const found = await Promise.all(
+    spacings.map(async (tickSpacing) => {
+      const pool = await publicClient.readContract({
+        address: factory,
+        abi: factoryAbi,
+        functionName: "getPool",
+        args: [USDC_BASE, token, tickSpacing],
+      });
+      if (/^0x0{40}$/i.test(pool)) return undefined;
+      const usdc = await publicClient.readContract({ address: USDC_BASE, abi: balanceAbi, functionName: "balanceOf", args: [pool] });
+      return { pool: getAddress(pool), tickSpacing, usdc };
+    }),
+  );
+  const pools = found.filter((p): p is NonNullable<typeof p> => !!p && p.usdc >= MIN_POOL_USDC);
+  return pools.sort((a, b) => (b.usdc > a.usdc ? 1 : b.usdc < a.usdc ? -1 : 0))[0];
 }

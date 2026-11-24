@@ -1,5 +1,5 @@
 // Checks that every basket stock can actually be bought with USDC on Base. Nothing is signed or sent.
-//   Aerodrome (default, no key): pool is registered with the factory, holds USDC, price feed is live.
+//   Aerodrome (default, no key): deepest USDC pool on the router's own factory, and a live price feed.
 //   0x / o1 (optional): only checked when ZEROX_API_KEY / O1_API_KEY are in .env.local.
 // Run from the project folder:
 //   npm run check-routes                 (uses a $5 test split and a placeholder wallet address)
@@ -9,7 +9,7 @@ import { base } from "viem/chains";
 
 const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const CHAIN = 8453;
-const taker = process.argv[2] ?? "0x000000000000000000000000000000000000dEaD";
+const taker = process.argv[2]; // optional; 0x prices without one
 const usd = Number(process.argv[3] ?? 5);
 const basket = (process.env.NEXT_PUBLIC_BASKET ?? "NVDAc:3400,GOOGLc:3300,METAc:3300")
   .split(",")
@@ -20,16 +20,18 @@ const basket = (process.env.NEXT_PUBLIC_BASKET ?? "NVDAc:3400,GOOGLc:3300,METAc:
 
 const client = createPublicClient({ chain: base, transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || undefined) });
 const ROUTER = process.env.AERODROME_ROUTER ?? "0x698Cb2b6dd822994581fEa6eA4Fc755d1363A92F";
-const FACTORY = process.env.AERODROME_CL_FACTORY ?? "0x9CB220581b91b0C83223012FE69688b92aD07a76";
-const ROUTES = {
-  NVDAc: { pool: "0xF668e21993f0ACd7ab00BB1cFbAeD0df28A3C8EC", feed: "0x04689a41629776563E6822F76f2e57D148d28513" },
-  GOOGLc: { pool: "0x16c70F04C3080a127486Cdf5a4C33c066bBF47C3", feed: "0x5bF49E0ffA937CE2FfF033c739aD7C634c4D34F2" },
-  METAc: { pool: "0xd072410fa13D242e1d53721Bcf7AF02e3455DC96", feed: "0x6526aE6797A76123638b863AeE4dD27Ba4E4b27D" },
-  AAPLc: { pool: "0xF5FCB9CDAFcE67d50AfEf298F88E709d2B946BA6", feed: "0x787f13dEa48Db0897CbCDD985de77809D837F988" },
-  MSFTc: { pool: "0x2740C0faAb738F6e346e545fDE02aEF9B1A01ee7", feed: "0xeB10A6c9aa7E537aEd766C08c35Dae35B321b18c" },
-  TSLAc: { pool: "0x7A33000372f3F028f074182CCb9d16cBEEfBF920", feed: "0xFaf869185383a24F8cb00e27BdA6b63B9905DCb4" },
-  AMZNc: { pool: "0x532e0F46d1e528507FC9454d5847C231f23bDDf6", feed: "0x06A8E4b3aBB3B7543d8396FB2B763d22820cB295" },
+// Glacier's pools live on this other Aerodrome CL factory. Shown for comparison only: our router can't use them.
+const OTHER_FACTORY = "0x9CB220581b91b0C83223012FE69688b92aD07a76";
+const FEEDS = {
+  NVDAc: "0x04689a41629776563E6822F76f2e57D148d28513",
+  GOOGLc: "0x5bF49E0ffA937CE2FfF033c739aD7C634c4D34F2",
+  METAc: "0x6526aE6797A76123638b863AeE4dD27Ba4E4b27D",
+  AAPLc: "0x787f13dEa48Db0897CbCDD985de77809D837F988",
+  MSFTc: "0xeB10A6c9aa7E537aEd766C08c35Dae35B321b18c",
+  TSLAc: "0xFaf869185383a24F8cb00e27BdA6b63B9905DCb4",
+  AMZNc: "0x06A8E4b3aBB3B7543d8396FB2B763d22820cB295",
 };
+const SPACINGS = [1, 10, 50, 100, 200, 2000];
 const poolAbi = parseAbi([
   "function tickSpacing() view returns (int24)",
   "function factory() view returns (address)",
@@ -38,7 +40,10 @@ const poolAbi = parseAbi([
 ]);
 const erc20 = parseAbi(["function balanceOf(address) view returns (uint256)"]);
 const feedAbi = parseAbi(["function latestRoundData() view returns (uint80,int256,uint256,uint256,uint80)"]);
-const factoryAbi = parseAbi(["function getPool(address,address,int24) view returns (address)"]);
+const factoryAbi = parseAbi([
+  "function getPool(address,address,int24) view returns (address)",
+  "function tickSpacings() view returns (int24[])",
+]);
 const routerAbi = parseAbi(["function factory() view returns (address)"]);
 
 async function json(res) {
@@ -66,25 +71,36 @@ async function listStocks() {
   return out;
 }
 
-async function tryAerodrome(symbol, token) {
-  const r = ROUTES[symbol];
-  if (!r) return "FAIL no pool configured";
-  const [ts, pf, t0, t1, usdcBal, round] = await Promise.all([
-    client.readContract({ address: r.pool, abi: poolAbi, functionName: "tickSpacing" }),
-    client.readContract({ address: r.pool, abi: poolAbi, functionName: "factory" }),
-    client.readContract({ address: r.pool, abi: poolAbi, functionName: "token0" }),
-    client.readContract({ address: r.pool, abi: poolAbi, functionName: "token1" }),
-    client.readContract({ address: USDC, abi: erc20, functionName: "balanceOf", args: [r.pool] }),
-    client.readContract({ address: r.feed, abi: feedAbi, functionName: "latestRoundData" }),
+async function pools(factory, token) {
+  const spacings = await client
+    .readContract({ address: factory, abi: factoryAbi, functionName: "tickSpacings" })
+    .then((t) => t.map(Number))
+    .catch(() => SPACINGS);
+  const out = [];
+  for (const ts of spacings) {
+    const pool = await client.readContract({ address: factory, abi: factoryAbi, functionName: "getPool", args: [USDC, token, ts] });
+    if (/^0x0{40}$/i.test(pool)) continue;
+    const bal = await client.readContract({ address: USDC, abi: erc20, functionName: "balanceOf", args: [pool] });
+    out.push({ pool, ts, usdc: Number(bal) / 1e6 });
+  }
+  return out.sort((a, b) => b.usdc - a.usdc);
+}
+
+async function tryAerodrome(symbol, token, factory) {
+  const feed = FEEDS[symbol];
+  if (!feed) return "FAIL no price feed configured";
+  const [mine, other, round] = await Promise.all([
+    pools(factory, token),
+    pools(OTHER_FACTORY, token).catch(() => []),
+    client.readContract({ address: feed, abi: feedAbi, functionName: "latestRoundData" }),
   ]);
-  const canon = await client.readContract({ address: FACTORY, abi: factoryAbi, functionName: "getPool", args: [USDC, token, ts] });
-  const problems = [];
-  if (pf.toLowerCase() !== FACTORY.toLowerCase()) problems.push(`pool factory is ${pf}`);
-  if (canon.toLowerCase() !== r.pool.toLowerCase()) problems.push("pool not registered with factory");
-  if (![t0, t1].map((a) => a.toLowerCase()).includes(token.toLowerCase())) problems.push("pool holds a different token");
   const ageH = (Date.now() / 1000 - Number(round[3])) / 3600;
-  const info = `tickSpacing ${ts}, $${(Number(usdcBal) / 1e6).toLocaleString()} USDC in pool, feed $${(Number(round[1]) / 1e8).toFixed(2)} (${ageH.toFixed(1)}h old)`;
-  return problems.length ? `FAIL ${problems.join("; ")} | ${info}` : `OK ${info}`;
+  const otherBest = other[0] ? ` | other factory's best pool: $${Math.round(other[0].usdc).toLocaleString()}` : "";
+  const best = mine[0];
+  if (!best || best.usdc < 1000) {
+    return `FAIL no pool with $1,000+ USDC on the router's factory${otherBest}`;
+  }
+  return `OK pool ${best.pool} (tickSpacing ${best.ts}), $${Math.round(best.usdc).toLocaleString()} USDC, feed $${(Number(round[1]) / 1e8).toFixed(2)} (${ageH.toFixed(1)}h old)${otherBest}`;
 }
 
 async function tryO1(token, usdc) {
@@ -95,7 +111,7 @@ async function tryO1(token, usdc) {
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       networkId: CHAIN,
-      signerAddress: taker,
+      signerAddress: taker ?? "0x000000000000000000000000000000000000dEaD",
       tokenAddress: token,
       quoteTokenAddress: USDC,
       uiAmount: usdc.toFixed(6),
@@ -120,8 +136,8 @@ async function try0x(token, usdc, decimals, nav) {
     sellToken: USDC,
     buyToken: token,
     sellAmount: String(Math.round(usdc * 1e6)),
-    taker,
   });
+  if (taker) q.set("taker", taker);
   const res = await fetch(`https://api.0x.org/swap/allowance-holder/price?${q}`, {
     headers: { "0x-api-key": key, "0x-version": "v2" },
   });
@@ -134,11 +150,8 @@ async function try0x(token, usdc, decimals, nav) {
   return `OK ${shares.toFixed(6)} shares at ~$${price.toFixed(2)}${vsRef}`;
 }
 
-const routerFactory = await client
-  .readContract({ address: ROUTER, abi: routerAbi, functionName: "factory" })
-  .catch((e) => `error: ${e.shortMessage ?? e.message}`);
-const routerOk = String(routerFactory).toLowerCase() === FACTORY.toLowerCase();
-console.log(`Aerodrome router ${ROUTER}\n  factory ${routerFactory} ${routerOk ? "(matches)" : `(DOES NOT MATCH ${FACTORY})`}\n`);
+const routerFactory = await client.readContract({ address: ROUTER, abi: routerAbi, functionName: "factory" });
+console.log(`Aerodrome router ${ROUTER}\n  swaps through factory ${routerFactory}\n`);
 
 const stocks = await listStocks();
 console.log(`Checking a $${usd} buy split across ${basket.map((b) => b.symbol).join(", ")}\n`);
@@ -152,7 +165,7 @@ for (const leg of basket) {
   }
   const usdc = (usd * leg.weightBps) / 10_000;
   const [aero, o1, zx] = await Promise.all([
-    tryAerodrome(leg.symbol, s.contract_address).catch((e) => `FAIL ${e.shortMessage ?? e.message}`),
+    tryAerodrome(leg.symbol, s.contract_address, routerFactory).catch((e) => `FAIL ${e.shortMessage ?? e.message}`),
     tryO1(s.contract_address, usdc).catch((e) => `FAIL ${e.message}`),
     try0x(s.contract_address, usdc, Number(s.decimals), s.nav_price).catch((e) => `FAIL ${e.message}`),
   ]);
@@ -162,6 +175,5 @@ for (const leg of basket) {
   console.log(`  0x:        ${zx}`);
   console.log(`  o1:        ${o1}\n`);
 }
-if (!routerOk) console.log("WARNING: the Aerodrome router doesn't point at the expected factory. Don't buy until this is fixed.");
 console.log(failures ? `${failures} stock(s) have no working route.` : "Every stock has at least one working route.");
-process.exit(failures || !routerOk ? 1 : 0);
+process.exit(failures ? 1 : 0);
