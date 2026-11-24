@@ -12,6 +12,10 @@ GEO_OVERRIDE_COUNTRY=US npm run dev   # test the US block locally
 npm run check-routes                  # can o1 and 0x each buy every basket stock? (nothing is sent)
 ```
 
+## Deploy (Render)
+
+`render.yaml` is a Render Blueprint: Render dashboard → **New → Blueprint** → pick this repo, fill in the keys it asks for. After the first deploy, open `/api/geo`: it should show your country and `"tradingBlocked": false` (from outside the US). The US block reads the country through `lib/geo.ts`, which works on Render (ipinfo lookup), behind Cloudflare, or on Vercel.
+
 ## What's here
 
 | File | What it does |

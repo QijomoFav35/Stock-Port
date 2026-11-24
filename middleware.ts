@@ -1,14 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { GEO_HEADER, isTradingBlocked } from "@/lib/geo";
+import { GEO_HEADER, isTradingBlocked, resolveCountry } from "@/lib/geo";
 
 /**
  * US / sanctioned-country trade block.
+ * - Finds the visitor's country (see lib/geo.ts) and passes it on in GEO_HEADER, replacing any
+ *   value the browser sent, so pages and API routes can trust it.
  * - /api/swap*: 451 Unavailable For Legal Reasons.
  * - Every other route stays reachable (/, /stats, diary) but gets an
  *   `x-geo-blocked` header and a readable cookie so the UI can disable trading.
  */
-export function middleware(req: NextRequest) {
-  const country = req.headers.get(GEO_HEADER);
+export async function middleware(req: NextRequest) {
+  const country = (await resolveCountry(req.headers)) ?? "";
   const blocked = isTradingBlocked(country);
   const { pathname } = req.nextUrl;
 
@@ -23,7 +25,9 @@ export function middleware(req: NextRequest) {
     );
   }
 
-  const res = NextResponse.next();
+  const headers = new Headers(req.headers);
+  headers.set(GEO_HEADER, country);
+  const res = NextResponse.next({ request: { headers } });
   res.headers.set("x-geo-blocked", blocked ? "1" : "0");
   res.cookies.set("sp_geo_blocked", blocked ? "1" : "0", { path: "/", sameSite: "lax" });
   return res;
