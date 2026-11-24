@@ -1,0 +1,178 @@
+/**
+ * POST /api/swap/quote
+ * Body: { taker, usdcAmount (decimal string, e.g. "10"), attestNonUS: true, slippageBps? }
+ * Returns the swap calls that mirror the Agent basket weights.
+ *
+ * Provider: o1 Exchange by default (o1 partner prize). If o1 fails for any leg, the whole basket is
+ * re-quoted through 0x automatically (when ZEROX_API_KEY is set), so a buy never dies on one router.
+ * SWAP_PROVIDER=0x flips the default. A client can force one provider with `provider` (for example
+ * smart wallets, which can't sign o1's Permit2 legs); a forced provider gets no fallback.
+ * The Builder Code suffix is added client-side at send time (lib/attribution.ts).
+ * Geo: middleware.ts returns 451 for blocked countries. We re-check here (defense in depth).
+ */
+import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
+import { formatUnits, getAddress, parseUnits, type Address, type Hex } from "viem";
+import { GEO_HEADER, isTradingBlocked } from "@/lib/geo";
+import { MAX_PORT_USDC, MIN_DUST_PORT_USDC, MIN_PORT_USDC, USDC_BASE, USDC_DECIMALS, parseBasket } from "@/lib/constants";
+import { resolveSymbols, type TokenizedStock } from "@/lib/tokenizedStocks";
+import { getZeroExQuote } from "@/lib/zeroEx";
+import { createO1BuyOrder, type Eip712 } from "@/lib/o1";
+
+export const dynamic = "force-dynamic";
+
+/** Canonical Uniswap Permit2 (same address on every chain). */
+const PERMIT2: Address = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
+
+const Body = z.object({
+  taker: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  usdcAmount: z.string().regex(/^\d+(\.\d{1,6})?$/),
+  attestNonUS: z.literal(true),
+  slippageBps: z.number().int().min(10).max(500).optional(),
+  provider: z.enum(["o1", "0x"]).optional(),
+  purpose: z.enum(["port", "dust"]).optional(),
+});
+
+type Provider = "o1" | "0x";
+const hasKey = (p: Provider) => Boolean(p === "o1" ? process.env.O1_API_KEY : process.env.ZEROX_API_KEY);
+
+export type PortCall = { to: Address; data: Hex; value: Hex; label: string; permit2?: Eip712 };
+export type PortQuote = {
+  provider: Provider;
+  /** Set when the default provider failed and this quote came from the backup. */
+  fallback?: { from: Provider; reason: string };
+  /** ERC-20 approval the client adds only if current allowance is short. */
+  approval?: { token: Address; spender: Address; amount: string };
+  calls: PortCall[];
+  legs: { symbol: string; token: Address; sellAmount: string; buyAmount?: string; minBuyAmount?: string; decimals: number; orderId?: string }[];
+  totalUsdc: string;
+  expiresAt: number;
+};
+
+class RouteError extends Error {
+  constructor(public status: number, public body: Record<string, unknown>) {
+    super(String(body.error));
+  }
+}
+
+export async function POST(req: NextRequest) {
+  if (isTradingBlocked(req.headers.get(GEO_HEADER))) {
+    return NextResponse.json({ error: "geo_blocked" }, { status: 451 });
+  }
+  const parsed = Body.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "bad_request", issues: parsed.error.issues }, { status: 400 });
+  }
+  const { usdcAmount, slippageBps, provider: forced, purpose } = parsed.data;
+  const taker = getAddress(parsed.data.taker);
+  const amt = Number(usdcAmount);
+  const min = purpose === "dust" ? MIN_DUST_PORT_USDC : MIN_PORT_USDC;
+  if (amt < min || amt > MAX_PORT_USDC) {
+    return NextResponse.json({ error: "amount_out_of_range", min, max: MAX_PORT_USDC }, { status: 400 });
+  }
+
+  try {
+    const basket = parseBasket();
+    const tokens = await resolveSymbols(basket.map((b) => b.symbol));
+    const total = parseUnits(usdcAmount, USDC_DECIMALS);
+
+    // Split by weight; the last leg takes the rounding remainder so legs sum exactly to total.
+    let allocated = 0n;
+    const sells = basket.map((b, i) => {
+      const s = i === basket.length - 1 ? total - allocated : (total * BigInt(b.weightBps)) / 10_000n;
+      allocated += s;
+      return s;
+    });
+
+    const primary: Provider = forced ?? (process.env.SWAP_PROVIDER === "0x" ? "0x" : "o1");
+    const backup: Provider = primary === "o1" ? "0x" : "o1";
+    const run = (p: Provider) =>
+      p === "o1" ? quoteO1(tokens, sells, taker, slippageBps) : quote0x(tokens, sells, taker, slippageBps);
+
+    let quote: Omit<PortQuote, "totalUsdc" | "expiresAt">;
+    try {
+      quote = await run(primary);
+    } catch (e) {
+      if (forced || !hasKey(backup)) throw e;
+      const reason = e instanceof RouteError ? JSON.stringify(e.body) : (e as Error).message;
+      console.warn(`[quote] ${primary} failed, falling back to ${backup}: ${reason}`);
+      quote = { ...(await run(backup)), fallback: { from: primary, reason: reason.slice(0, 200) } };
+    }
+    return NextResponse.json({ ...quote, totalUsdc: total.toString(), expiresAt: Date.now() + 30_000 } satisfies PortQuote);
+  } catch (e) {
+    if (e instanceof RouteError) return NextResponse.json(e.body, { status: e.status });
+    return NextResponse.json({ error: "quote_failed", message: (e as Error).message }, { status: 502 });
+  }
+}
+
+async function quoteO1(tokens: TokenizedStock[], sells: bigint[], taker: Address, slippageBps?: number) {
+  const orders = await Promise.all(
+    tokens.map((t, i) =>
+      createO1BuyOrder({
+        signer: taker,
+        token: getAddress(t.contract_address),
+        usdcUiAmount: formatUnits(sells[i], USDC_DECIMALS),
+        slippageBps,
+      }),
+    ),
+  );
+  const calls: PortCall[] = orders.flatMap((o, i) =>
+    o.transactions.map((tx, j) => ({
+      to: tx.to,
+      data: tx.data,
+      value: tx.value,
+      permit2: tx.permit2,
+      label: o.transactions.length > 1 ? `Buy ${tokens[i].symbol} (${j + 1}/${o.transactions.length})` : `Buy ${tokens[i].symbol}`,
+    })),
+  );
+  const total = sells.reduce((a, b) => a + b, 0n);
+  // Permit2 flow needs USDC approved to the Permit2 contract once (assumption; o1 docs don't say).
+  const usesPermit2 = calls.some((c) => c.permit2);
+  return {
+    provider: "o1" as const,
+    approval: usesPermit2 ? { token: USDC_BASE, spender: PERMIT2, amount: total.toString() } : undefined,
+    calls,
+    legs: tokens.map((t, i) => ({
+      symbol: t.symbol,
+      token: getAddress(t.contract_address),
+      sellAmount: sells[i].toString(),
+      decimals: t.decimals,
+      orderId: orders[i].id,
+    })),
+  };
+}
+
+async function quote0x(tokens: TokenizedStock[], sells: bigint[], taker: Address, slippageBps?: number) {
+  const quotes = await Promise.all(
+    tokens.map((t, i) =>
+      getZeroExQuote({ sellToken: USDC_BASE, buyToken: getAddress(t.contract_address), sellAmount: sells[i], taker, slippageBps }),
+    ),
+  );
+  const noLiq = tokens.filter((_, i) => !quotes[i].liquidityAvailable).map((t) => t.symbol);
+  if (noLiq.length) throw new RouteError(422, { error: "no_liquidity", symbols: noLiq });
+
+  // AllowanceHolder is both the spender and the tx target for every leg.
+  const spender = getAddress(quotes[0].transaction.to);
+  if (quotes.some((q) => getAddress(q.transaction.to) !== spender)) {
+    throw new RouteError(502, { error: "inconsistent_spender" });
+  }
+  const total = sells.reduce((a, b) => a + b, 0n);
+  return {
+    provider: "0x" as const,
+    approval: { token: USDC_BASE, spender, amount: total.toString() },
+    calls: quotes.map((q, i) => ({
+      to: spender,
+      data: q.transaction.data,
+      value: ("0x" + BigInt(q.transaction.value || "0").toString(16)) as Hex,
+      label: `Buy ${tokens[i].symbol}`,
+    })),
+    legs: tokens.map((t, i) => ({
+      symbol: t.symbol,
+      token: getAddress(t.contract_address),
+      sellAmount: sells[i].toString(),
+      buyAmount: quotes[i].buyAmount,
+      minBuyAmount: quotes[i].minBuyAmount,
+      decimals: t.decimals,
+    })),
+  };
+}
