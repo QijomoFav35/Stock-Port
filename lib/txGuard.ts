@@ -1,0 +1,105 @@
+/**
+ * Client-side safety check on every call before it reaches the wallet.
+ *
+ * The quote API builds the calls, but the browser does not trust it blindly. If the server, a
+ * swap provider or a proxy in between ever returned something unexpected, the wallet prompt
+ * would never open. Checks:
+ *  - USDC (or a dust token) is only ever approved to a known contract, for the exact amount
+ *    being spent, never "unlimited".
+ *  - Aerodrome and 0x calls may only go to their official contracts.
+ *  - Aerodrome buys must send the stock to the connected wallet.
+ *  - No call may move tokens or hand out approvals on its own (transfer, transferFrom,
+ *    approve, increaseAllowance, setApprovalForAll, permit).
+ */
+import { decodeFunctionData, getAddress, isAddressEqual, toFunctionSelector, type Address, type Hex } from "viem";
+import { slipstreamRouterAbi } from "@/lib/aerodrome";
+import { USDC_BASE } from "@/lib/constants";
+
+/** Official contracts on Base mainnet. Each links to its verified source on Basescan. */
+export const KNOWN_CONTRACTS = {
+  aerodromeRouter: {
+    address: getAddress("0x698Cb2b6dd822994581fEa6eA4Fc755d1363A92F"),
+    name: "Aerodrome Slipstream swap router",
+  },
+  zeroExAllowanceHolder: {
+    address: getAddress("0x0000000000001fF3684f28c67538d4D072C22734"),
+    name: "0x AllowanceHolder",
+  },
+  permit2: {
+    address: getAddress("0x000000000022D473030F116dDEE9F6B43aC78BA3"),
+    name: "Uniswap Permit2",
+  },
+  usdc: { address: getAddress(USDC_BASE), name: "USDC (Circle)" },
+} as const;
+
+export function contractName(addr: Address): string | undefined {
+  return Object.values(KNOWN_CONTRACTS).find((c) => isAddressEqual(c.address, addr))?.name;
+}
+
+export const basescanAddress = (a: Address) => `https://basescan.org/address/${a}`;
+
+const FORBIDDEN_SELECTORS = new Set(
+  [
+    "transfer(address,uint256)",
+    "transferFrom(address,address,uint256)",
+    "approve(address,uint256)",
+    "increaseAllowance(address,uint256)",
+    "setApprovalForAll(address,bool)",
+    "permit(address,address,uint256,uint256,uint8,bytes32,bytes32)",
+  ].map((s) => toFunctionSelector(s)),
+);
+
+export class UnsafeTransactionError extends Error {
+  constructor(reason: string) {
+    super(`Stopped for your safety: ${reason}. Nothing was sent to your wallet.`);
+  }
+}
+
+type Provider = "aerodrome" | "o1" | "0x";
+type Call = { to: Address; data: Hex; value: Hex | string };
+
+/** Approval must go to a known spender for this route and never exceed what is being spent. */
+export function checkApproval(
+  provider: Provider,
+  approval: { token: Address; spender: Address; amount: string } | undefined,
+  maxAmount: bigint,
+  expectedToken: Address = USDC_BASE,
+) {
+  if (!approval) return;
+  if (!isAddressEqual(approval.token, expectedToken)) throw new UnsafeTransactionError("approval for an unexpected token");
+  const allowed: Record<Provider, Address> = {
+    aerodrome: KNOWN_CONTRACTS.aerodromeRouter.address,
+    "0x": KNOWN_CONTRACTS.zeroExAllowanceHolder.address,
+    o1: KNOWN_CONTRACTS.permit2.address,
+  };
+  if (!isAddressEqual(approval.spender, allowed[provider])) {
+    throw new UnsafeTransactionError("approval to an unknown contract");
+  }
+  if (BigInt(approval.amount) > maxAmount) throw new UnsafeTransactionError("approval larger than the amount you are spending");
+}
+
+/** Each swap call must target the route's official contract and pay out to the user. */
+export function checkSwapCall(provider: Provider, call: Call, account: Address) {
+  if (BigInt(call.value || "0") !== 0n) throw new UnsafeTransactionError("a swap asked for ETH");
+  const selector = call.data.slice(0, 10).toLowerCase() as Hex;
+  if (FORBIDDEN_SELECTORS.has(selector)) throw new UnsafeTransactionError("a call tried to move or approve tokens directly");
+
+  if (provider === "aerodrome") {
+    if (!isAddressEqual(call.to, KNOWN_CONTRACTS.aerodromeRouter.address)) {
+      throw new UnsafeTransactionError("a swap pointed at an unknown contract");
+    }
+    const { functionName, args } = decodeFunctionData({ abi: slipstreamRouterAbi, data: call.data });
+    if (functionName !== "exactInputSingle") throw new UnsafeTransactionError("unexpected router function");
+    const p = args[0];
+    if (!isAddressEqual(p.recipient, account)) throw new UnsafeTransactionError("the stock would be sent to another address");
+    if (!isAddressEqual(p.tokenIn, USDC_BASE)) throw new UnsafeTransactionError("the swap would spend a token other than USDC");
+    if (p.amountOutMinimum === 0n) throw new UnsafeTransactionError("the swap had no price protection");
+  } else if (provider === "0x") {
+    if (!isAddressEqual(call.to, KNOWN_CONTRACTS.zeroExAllowanceHolder.address)) {
+      throw new UnsafeTransactionError("a swap pointed at an unknown contract");
+    }
+  } else if (isAddressEqual(call.to, USDC_BASE)) {
+    // o1 targets vary per order, so the selector check above is the guard; USDC itself is off limits.
+    throw new UnsafeTransactionError("a swap tried to call USDC directly");
+  }
+}

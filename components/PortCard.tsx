@@ -2,6 +2,8 @@
 import { useEffect, useState } from "react";
 import { useAccount, useWalletClient } from "wagmi";
 import ConnectButton from "@/components/ConnectButton";
+import ReviewPanel from "@/components/ReviewPanel";
+import SafetyNote from "@/components/SafetyNote";
 import ShareButtons from "@/components/ShareButtons";
 import { usePortBundle } from "@/hooks/usePortBundle";
 import { MAX_PORT_USDC, MIN_PORT_USDC } from "@/lib/constants";
@@ -11,7 +13,7 @@ const ATTEST_KEY = "sp_attest_non_us";
 export default function PortCard({ geoBlocked }: { geoBlocked: boolean }) {
   const { address } = useAccount();
   const { data: walletClient } = useWalletClient();
-  const { port, status, step, error, result, builderCodeConfigured } = usePortBundle(walletClient, address);
+  const { port, confirm, cancel, plan, status, step, error, result, builderCodeConfigured } = usePortBundle(walletClient, address);
   const [amount, setAmount] = useState("5");
   const [attest, setAttest] = useState(false);
 
@@ -65,9 +67,11 @@ export default function PortCard({ geoBlocked }: { geoBlocked: boolean }) {
 
       {!address ? (
         <ConnectButton className="w-full" />
+      ) : status === "review" && plan ? (
+        <ReviewPanel plan={plan} onConfirm={confirm} onCancel={cancel} />
       ) : (
         <button
-          onClick={() => port(amount, { attestNonUS: attest }).catch(() => {})}
+          onClick={() => port(amount, { attestNonUS: attest, review: true }).catch(() => {})}
           disabled={!attest || !validAmount || busy || !builderCodeConfigured}
           className="w-full rounded-xl bg-blue-600 py-3 font-semibold text-white disabled:opacity-50"
         >
@@ -76,6 +80,7 @@ export default function PortCard({ geoBlocked }: { geoBlocked: boolean }) {
       )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
+      <SafetyNote />
       {result && (
         <div className="text-sm space-y-1">
           <p className="text-green-600 font-medium">

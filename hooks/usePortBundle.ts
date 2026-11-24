@@ -13,15 +13,17 @@
  *   for each receipt before the next (swaps need the approve mined).
  */
 import { useCallback, useRef, useState } from "react";
-import { encodeFunctionData, erc20Abi, type Address, type Hash, type Hex, type WalletClient } from "viem";
+import { encodeFunctionData, erc20Abi, formatUnits, type Address, type Hash, type Hex, type WalletClient } from "viem";
 import { base } from "viem/chains";
 import { DATA_SUFFIX, requireDataSuffix, withBuilderCode } from "@/lib/attribution";
 import { O1_SIGNATURE_PLACEHOLDER, type Eip712 } from "@/lib/o1";
 import type { PortCall, PortQuote } from "@/app/api/swap/quote/route";
 import { publicClient } from "@/lib/publicClient";
 import { getBaseCapabilities, shortError } from "@/lib/walletCaps";
+import { checkApproval, checkSwapCall, contractName } from "@/lib/txGuard";
+import { USDC_DECIMALS } from "@/lib/constants";
 
-export type PortStatus = "idle" | "quoting" | "signing" | "confirming" | "pending" | "success" | "error";
+export type PortStatus = "idle" | "quoting" | "review" | "signing" | "confirming" | "pending" | "success" | "error";
 export type PortResult = { mode: "batch" | "sequential"; txHashes: Hash[]; quote: PortQuote };
 type SendCall = { to: Address; data: Hex; value: Hex; label: string };
 export type PortOpts = {
@@ -30,6 +32,19 @@ export type PortOpts = {
   provider?: "aerodrome" | "o1" | "0x";
   /** "dust" lets a sweep buy the basket with less than the normal $5 minimum. */
   purpose?: "port" | "dust";
+  /** Pause on a plain-English summary until the user presses Confirm (see `plan`). */
+  review?: boolean;
+};
+
+/** What the user is about to sign, shown before the wallet opens. */
+export type PortPlan = {
+  provider: "aerodrome" | "o1" | "0x";
+  totalUsdc: string;
+  /** Present only when the current allowance is short. Always the exact amount, never unlimited. */
+  approval?: { spender: Address; spenderName: string; usdc: string };
+  buys: { symbol: string; token: Address; usdc: string; minOut?: string }[];
+  contracts: { address: Address; name: string }[];
+  steps: number;
 };
 
 export function usePortBundle(walletClient: WalletClient | undefined, account: Address | undefined) {
@@ -37,12 +52,17 @@ export function usePortBundle(walletClient: WalletClient | undefined, account: A
   const [step, setStep] = useState<string>();
   const [error, setError] = useState<string>();
   const [result, setResult] = useState<PortResult>();
+  const [plan, setPlan] = useState<PortPlan>();
+  const decideRef = useRef<(ok: boolean) => void>(undefined);
+  const confirm = useCallback(() => decideRef.current?.(true), []);
+  const cancel = useCallback(() => decideRef.current?.(false), []);
   const portRef = useRef<(usdcAmount: string, opts: PortOpts) => Promise<PortResult>>(undefined);
 
   const port = useCallback(
     async (usdcAmount: string, opts: PortOpts): Promise<PortResult> => {
       setError(undefined);
       setResult(undefined);
+      setPlan(undefined);
       try {
         if (!walletClient || !account) throw new Error("Connect a wallet first");
         if (!opts.attestNonUS) throw new Error("Please confirm you are not a US person");
@@ -95,8 +115,61 @@ export function usePortBundle(walletClient: WalletClient | undefined, account: A
         ]);
         if (balance < total) throw new Error("Not enough USDC on Base");
 
+        // Refuse anything unexpected before the wallet ever opens (lib/txGuard.ts).
+        checkApproval(quote.provider, quote.approval, total);
+        for (const c of quote.calls) checkSwapCall(quote.provider, c, account);
+        const needsApproval = !!quote.approval && allowance < BigInt(quote.approval.amount);
+
+        if (opts.review) {
+          const usd = (raw: string | bigint) => formatUnits(BigInt(raw), USDC_DECIMALS);
+          const targets = [...new Set([...(needsApproval ? [quote.approval!.spender] : []), ...quote.calls.map((c) => c.to)])];
+          setPlan({
+            provider: quote.provider,
+            totalUsdc: usd(total),
+            approval: needsApproval
+              ? {
+                  spender: quote.approval!.spender,
+                  spenderName: contractName(quote.approval!.spender) ?? "Swap contract",
+                  usdc: usd(quote.approval!.amount),
+                }
+              : undefined,
+            buys: quote.legs.map((l) => ({
+              symbol: l.symbol,
+              token: l.token,
+              usdc: usd(l.sellAmount),
+              minOut: l.minBuyAmount ? formatUnits(BigInt(l.minBuyAmount), l.decimals) : undefined,
+            })),
+            contracts: targets.map((a) => ({ address: a, name: contractName(a) ?? "o1 Exchange order contract" })),
+            steps: quote.calls.length + (needsApproval ? 1 : 0),
+          });
+          setStatus("review");
+          setStep("Review and confirm");
+          const ok = await new Promise<boolean>((resolve) => {
+            decideRef.current = resolve;
+          });
+          decideRef.current = undefined;
+          if (!ok) {
+            setPlan(undefined);
+            setStatus("idle");
+            setStep(undefined);
+            throw new Error("cancelled");
+          }
+          if (Date.now() > quote.expiresAt) {
+            // Same amount, same route, fresh prices. Re-checked before anything is signed.
+            setStatus("quoting");
+            setStep("Refreshing the price");
+            const fresh = await getQuote(quote.provider);
+            if (fresh.provider !== quote.provider || BigInt(fresh.totalUsdc) !== total) {
+              throw new Error("The route changed while you were reviewing. Press Port again.");
+            }
+            checkApproval(fresh.provider, fresh.approval, total);
+            for (const c of fresh.calls) checkSwapCall(fresh.provider, c, account);
+            quote = fresh;
+          }
+        }
+
         const calls: SendCall[] = [];
-        if (quote.approval && allowance < BigInt(quote.approval.amount)) {
+        if (needsApproval && quote.approval) {
           calls.push({
             to: quote.approval.token,
             data: encodeFunctionData({
@@ -177,6 +250,7 @@ export function usePortBundle(walletClient: WalletClient | undefined, account: A
         // Phase 3: POST txHashes to /api/stats for server-side verification + logging.
         return out;
       } catch (e) {
+        if (e instanceof Error && e.message === "cancelled") throw e;
         setStatus("error");
         setError(shortError(e));
         throw e;
@@ -186,7 +260,7 @@ export function usePortBundle(walletClient: WalletClient | undefined, account: A
   );
   portRef.current = port;
 
-  return { port, status, step, error, result, builderCodeConfigured: !!DATA_SUFFIX };
+  return { port, confirm, cancel, plan, status, step, error, result, builderCodeConfigured: !!DATA_SUFFIX };
 }
 
 class NonStandardSignatureError extends Error {

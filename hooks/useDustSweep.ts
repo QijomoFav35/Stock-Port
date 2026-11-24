@@ -15,6 +15,7 @@ import { base } from "viem/chains";
 import { requireDataSuffix, withBuilderCode } from "@/lib/attribution";
 import { MIN_DUST_PORT_USDC, USDC_BASE, USDC_DECIMALS } from "@/lib/constants";
 import { publicClient } from "@/lib/publicClient";
+import { checkApproval, checkSwapCall } from "@/lib/txGuard";
 import { getBaseCapabilities, isUserRejection, shortError } from "@/lib/walletCaps";
 import type { DustScan, DustToken } from "@/app/api/swap/dust/scan/route";
 import type { DustQuote } from "@/app/api/swap/dust/quote/route";
@@ -106,6 +107,13 @@ export function useDustSweep(
         if (!res.ok) throw new Error(quote.message ?? quote.error ?? "Quote failed");
         for (const s of quote.skipped) mark(s.token, { state: "failed", reason: SKIP_TEXT[s.reason] ?? s.reason });
         if (!quote.legs.length) throw new Error("None of the selected tokens can be swapped right now.");
+
+        // Refuse unknown contracts before the wallet opens: each token is approved to the official
+        // 0x contract for exactly the amount being sold (lib/txGuard.ts).
+        for (const l of quote.legs) {
+          checkApproval("0x", { token: l.token, spender: l.spender, amount: l.sellAmount }, BigInt(l.sellAmount), l.token);
+          checkSwapCall("0x", l.call, account);
+        }
 
         // Approvals only where the current allowance is short.
         const allowances = await Promise.all(

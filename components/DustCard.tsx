@@ -1,4 +1,5 @@
 "use client";
+import SafetyNote from "@/components/SafetyNote";
 import { useEffect, useMemo, useState } from "react";
 import { useAccount, useWalletClient } from "wagmi";
 import ConnectButton from "@/components/ConnectButton";
@@ -193,6 +194,7 @@ export default function DustCard({ geoBlocked }: { geoBlocked: boolean }) {
       </button>
 
       {dust.error && <p className="text-sm text-red-600">{dust.error}</p>}
+      <SafetyNote />
       {dust.result && (
         <div className="text-sm space-y-1">
           <p className="text-green-600 font-medium">
