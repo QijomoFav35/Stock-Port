@@ -84,7 +84,8 @@ export default function PortCard({ geoBlocked }: { geoBlocked: boolean }) {
       {result && (
         <div className="text-sm space-y-1">
           <p className="text-green-600 font-medium">
-            Ported via {result.mode === "batch" ? "one batched confirmation" : `${result.txHashes.length} transactions`}.
+            Ported via {result.mode === "batch" ? "one batched confirmation" : `${result.txHashes.length} transactions`}, routed via{" "}
+            {result.quote.provider === "o1" ? "o1 Exchange" : result.quote.provider === "0x" ? "0x" : "Aerodrome"}.
           </p>
           {result.txHashes.map((h) => (
             <a key={h} href={`https://basescan.org/tx/${h}`} target="_blank" rel="noreferrer" className="block underline truncate">
