@@ -23,7 +23,7 @@ export const KNOWN_CONTRACTS = {
   },
   zeroExAllowanceHolder: {
     address: getAddress("0x0000000000001fF3684f28c67538d4D072C22734"),
-    name: "0x AllowanceHolder",
+    name: "AllowanceHolder swap contract (used by o1 and 0x)",
   },
   permit2: {
     address: getAddress("0x000000000022D473030F116dDEE9F6B43aC78BA3"),
@@ -70,9 +70,12 @@ export function checkApproval(
   const allowed: Record<Provider, Address> = {
     aerodrome: KNOWN_CONTRACTS.aerodromeRouter.address,
     "0x": KNOWN_CONTRACTS.zeroExAllowanceHolder.address,
-    o1: KNOWN_CONTRACTS.permit2.address,
+    o1: KNOWN_CONTRACTS.zeroExAllowanceHolder.address,
   };
-  if (!isAddressEqual(approval.spender, allowed[provider])) {
+  const ok =
+    isAddressEqual(approval.spender, allowed[provider]) ||
+    (provider === "o1" && isAddressEqual(approval.spender, KNOWN_CONTRACTS.permit2.address));
+  if (!ok) {
     throw new UnsafeTransactionError("approval to an unknown contract");
   }
   if (BigInt(approval.amount) > maxAmount) throw new UnsafeTransactionError("approval larger than the amount you are spending");
@@ -98,8 +101,10 @@ export function checkSwapCall(provider: Provider, call: Call, account: Address) 
     if (!isAddressEqual(call.to, KNOWN_CONTRACTS.zeroExAllowanceHolder.address)) {
       throw new UnsafeTransactionError("a swap pointed at an unknown contract");
     }
-  } else if (isAddressEqual(call.to, USDC_BASE)) {
-    // o1 targets vary per order, so the selector check above is the guard; USDC itself is off limits.
-    throw new UnsafeTransactionError("a swap tried to call USDC directly");
+  } else {
+    // o1 builds its swaps on the AllowanceHolder contract (seen in live o1 orders, Nov 2026).
+    if (!isAddressEqual(call.to, KNOWN_CONTRACTS.zeroExAllowanceHolder.address)) {
+      throw new UnsafeTransactionError("an o1 swap pointed at an unknown contract");
+    }
   }
 }

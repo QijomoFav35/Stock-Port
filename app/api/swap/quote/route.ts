@@ -164,21 +164,35 @@ async function quoteO1(tokens: TokenizedStock[], sells: bigint[], taker: Address
       }),
     ),
   );
-  const calls: PortCall[] = orders.flatMap((o, i) =>
-    o.transactions.map((tx, j) => ({
+  // o1 returns [USDC approve (unlimited), swap] per leg. We never forward its approve: the client adds
+  // one exact-amount approval for the whole basket instead (see `approval` below and lib/txGuard.ts).
+  const APPROVE = "0x095ea7b3";
+  const spenders = new Set<string>();
+  const calls: PortCall[] = orders.flatMap((o, i) => {
+    const kept = o.transactions.filter((tx) => {
+      const isApprove = tx.data.slice(0, 10).toLowerCase() === APPROVE;
+      if (!isApprove) return true;
+      if (getAddress(tx.to) !== getAddress(USDC_BASE)) {
+        throw new RouteError(502, { error: "o1_unexpected_approve", detail: tx.to });
+      }
+      spenders.add(getAddress(("0x" + tx.data.slice(34, 74)) as Address));
+      return false;
+    });
+    return kept.map((tx, j) => ({
       to: tx.to,
       data: tx.data,
       value: tx.value,
       permit2: tx.permit2,
-      label: o.transactions.length > 1 ? `Buy ${tokens[i].symbol} (${j + 1}/${o.transactions.length})` : `Buy ${tokens[i].symbol}`,
-    })),
-  );
+      label: kept.length > 1 ? `Buy ${tokens[i].symbol} (${j + 1}/${kept.length})` : `Buy ${tokens[i].symbol}`,
+    }));
+  });
+  if (spenders.size > 1) throw new RouteError(502, { error: "o1_inconsistent_spender" });
   const total = sells.reduce((a, b) => a + b, 0n);
-  // Permit2 flow needs USDC approved to the Permit2 contract once (assumption; o1 docs don't say).
   const usesPermit2 = calls.some((c) => c.permit2);
+  const spender = spenders.size ? ([...spenders][0] as Address) : usesPermit2 ? PERMIT2 : undefined;
   return {
     provider: "o1" as const,
-    approval: usesPermit2 ? { token: USDC_BASE, spender: PERMIT2, amount: total.toString() } : undefined,
+    approval: spender ? { token: USDC_BASE, spender, amount: total.toString() } : undefined,
     calls,
     legs: tokens.map((t, i) => ({
       symbol: t.symbol,
