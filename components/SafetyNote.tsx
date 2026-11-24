@@ -14,11 +14,19 @@ export default function SafetyNote() {
           nothing more.
         </li>
         <li>
-          Swaps go through the official{" "}
+          Buys are routed by{" "}
+          <a className="underline" href="https://o1.exchange" target="_blank" rel="noreferrer">
+            o1 Exchange
+          </a>{" "}
+          through the{" "}
+          <a className="underline" href={basescanAddress(KNOWN_CONTRACTS.zeroExAllowanceHolder.address)} target="_blank" rel="noreferrer">
+            AllowanceHolder contract
+          </a>
+          , or directly through the official{" "}
           <a className="underline" href={basescanAddress(KNOWN_CONTRACTS.aerodromeRouter.address)} target="_blank" rel="noreferrer">
             Aerodrome router
-          </a>{" "}
-          (0x is the backup). The app refuses to send anything to any other contract.
+          </a>
+          . The app refuses to send anything to any other contract.
         </li>
         <li>You see every step in plain English before your wallet opens, and nothing happens until you confirm.</li>
         <li>
