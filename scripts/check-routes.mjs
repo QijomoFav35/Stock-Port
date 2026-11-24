@@ -9,8 +9,10 @@ import { base } from "viem/chains";
 
 const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const CHAIN = 8453;
-const taker = process.argv[2]; // optional; 0x prices without one
-const usd = Number(process.argv[3] ?? 5);
+const args = process.argv.slice(2).filter((a) => a !== "--details");
+const showDetails = process.argv.includes("--details");
+const taker = args[0]; // optional; 0x prices without one
+const usd = Number(args[1] ?? 5);
 const basket = (process.env.NEXT_PUBLIC_BASKET ?? "NVDAc:3400,GOOGLc:3300,METAc:3300")
   .split(",")
   .map((p) => {
@@ -125,7 +127,22 @@ async function tryO1(token, usdc) {
     return `FAIL ${res.status} ${JSON.stringify(body).slice(0, 160)}`;
   }
   const permit2 = body.transactions.some((t) => t.permit2) ? ", uses Permit2" : "";
-  return `OK (${body.transactions.length} tx${permit2})`;
+  // Describe each step so we can see what o1 asks the wallet to do (shown only with --details).
+  const steps = body.transactions.map((t, i) => {
+    const u = typeof t.unsigned === "string" ? { raw: t.unsigned } : t.unsigned ?? {};
+    if (u.raw) return `      step ${i + 1}: raw signed-tx format (${String(u.raw).slice(0, 12)}...)`;
+    const data = String(u.data ?? "0x");
+    const sel = data.slice(0, 10);
+    let what = `call ${sel}`;
+    if (sel === "0x095ea7b3") {
+      const spender = "0x" + data.slice(34, 74);
+      const amount = BigInt("0x" + data.slice(74, 138));
+      what = `APPROVE spender ${spender} amount ${amount === 2n ** 256n - 1n ? "UNLIMITED" : `${Number(amount) / 1e6} USDC`}`;
+    }
+    const usdcTarget = String(u.to ?? "").toLowerCase() === USDC.toLowerCase() ? " (USDC contract)" : "";
+    return `      step ${i + 1}: to ${u.to}${usdcTarget} | ${what} | value ${u.value ?? 0}${t.permit2 ? " | Permit2 signature" : ""}`;
+  });
+  return `OK (${body.transactions.length} tx${permit2})${showDetails ? "\n" + steps.join("\n") : ""}`;
 }
 
 async function try0x(token, usdc, decimals, nav) {
