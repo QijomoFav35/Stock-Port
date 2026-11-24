@@ -3,10 +3,10 @@
  * Body: { taker, usdcAmount (decimal string, e.g. "10"), attestNonUS: true, slippageBps? }
  * Returns the swap calls that mirror the Agent basket weights.
  *
- * Provider: o1 Exchange by default (o1 partner prize). If o1 fails for any leg, the whole basket is
- * re-quoted through 0x automatically (when ZEROX_API_KEY is set), so a buy never dies on one router.
- * SWAP_PROVIDER=0x flips the default. A client can force one provider with `provider` (for example
- * smart wallets, which can't sign o1's Permit2 legs); a forced provider gets no fallback.
+ * Provider order: Aerodrome direct (default, no key), then 0x (if ZEROX_API_KEY), then o1 (if O1_API_KEY).
+ * If one fails for any leg, the whole basket is re-quoted with the next, so a buy never dies on one
+ * route. SWAP_PROVIDER picks a different first choice. A client can force one provider with
+ * `provider` (e.g. smart wallets can't sign o1's Permit2 legs); a forced provider gets no fallback.
  * The Builder Code suffix is added client-side at send time (lib/attribution.ts).
  * Geo: middleware.ts returns 451 for blocked countries. We re-check here (defense in depth).
  */
@@ -18,6 +18,7 @@ import { MAX_PORT_USDC, MIN_DUST_PORT_USDC, MIN_PORT_USDC, USDC_BASE, USDC_DECIM
 import { resolveSymbols, type TokenizedStock } from "@/lib/tokenizedStocks";
 import { getZeroExQuote } from "@/lib/zeroEx";
 import { createO1BuyOrder, type Eip712 } from "@/lib/o1";
+import { AERODROME_ROUTER, buildAerodromeBuys } from "@/lib/aerodrome";
 
 export const dynamic = "force-dynamic";
 
@@ -29,12 +30,13 @@ const Body = z.object({
   usdcAmount: z.string().regex(/^\d+(\.\d{1,6})?$/),
   attestNonUS: z.literal(true),
   slippageBps: z.number().int().min(10).max(500).optional(),
-  provider: z.enum(["o1", "0x"]).optional(),
+  provider: z.enum(["aerodrome", "o1", "0x"]).optional(),
   purpose: z.enum(["port", "dust"]).optional(),
 });
 
-type Provider = "o1" | "0x";
-const hasKey = (p: Provider) => Boolean(p === "o1" ? process.env.O1_API_KEY : process.env.ZEROX_API_KEY);
+type Provider = "aerodrome" | "o1" | "0x";
+const available = (p: Provider) =>
+  p === "aerodrome" ? true : Boolean(p === "o1" ? process.env.O1_API_KEY : process.env.ZEROX_API_KEY);
 
 export type PortCall = { to: Address; data: Hex; value: Hex; label: string; permit2?: Eip712 };
 export type PortQuote = {
@@ -84,25 +86,71 @@ export async function POST(req: NextRequest) {
       return s;
     });
 
-    const primary: Provider = forced ?? (process.env.SWAP_PROVIDER === "0x" ? "0x" : "o1");
-    const backup: Provider = primary === "o1" ? "0x" : "o1";
+    const first = (forced ?? process.env.SWAP_PROVIDER ?? "aerodrome") as Provider;
+    const order: Provider[] = forced
+      ? [forced]
+      : [first, ...(["aerodrome", "0x", "o1"] as Provider[]).filter((p) => p !== first)].filter(available);
     const run = (p: Provider) =>
-      p === "o1" ? quoteO1(tokens, sells, taker, slippageBps) : quote0x(tokens, sells, taker, slippageBps);
+      p === "aerodrome"
+        ? quoteAerodrome(basket.map((b) => b.symbol), tokens, sells, taker, slippageBps)
+        : p === "o1"
+          ? quoteO1(tokens, sells, taker, slippageBps)
+          : quote0x(tokens, sells, taker, slippageBps);
 
-    let quote: Omit<PortQuote, "totalUsdc" | "expiresAt">;
-    try {
-      quote = await run(primary);
-    } catch (e) {
-      if (forced || !hasKey(backup)) throw e;
-      const reason = e instanceof RouteError ? JSON.stringify(e.body) : (e as Error).message;
-      console.warn(`[quote] ${primary} failed, falling back to ${backup}: ${reason}`);
-      quote = { ...(await run(backup)), fallback: { from: primary, reason: reason.slice(0, 200) } };
+    let quote: Omit<PortQuote, "totalUsdc" | "expiresAt"> | undefined;
+    let firstError: unknown;
+    for (const p of order) {
+      try {
+        const q = await run(p);
+        quote = firstError ? { ...q, fallback: { from: order[0], reason: errText(firstError).slice(0, 200) } } : q;
+        break;
+      } catch (e) {
+        console.warn(`[quote] ${p} failed: ${errText(e)}`);
+        firstError ??= e;
+      }
     }
+    if (!quote) throw firstError ?? new Error("No swap route available");
     return NextResponse.json({ ...quote, totalUsdc: total.toString(), expiresAt: Date.now() + 30_000 } satisfies PortQuote);
   } catch (e) {
     if (e instanceof RouteError) return NextResponse.json(e.body, { status: e.status });
     return NextResponse.json({ error: "quote_failed", message: (e as Error).message }, { status: 502 });
   }
+}
+
+function errText(e: unknown) {
+  return e instanceof RouteError ? JSON.stringify(e.body) : (e as Error)?.message ?? String(e);
+}
+
+async function quoteAerodrome(
+  symbols: string[],
+  tokens: TokenizedStock[],
+  sells: bigint[],
+  taker: Address,
+  slippageBps?: number,
+) {
+  const legs = await buildAerodromeBuys({
+    legs: tokens.map((t, i) => ({
+      symbol: symbols[i],
+      token: getAddress(t.contract_address),
+      decimals: t.decimals,
+      usdcIn: sells[i],
+    })),
+    recipient: taker,
+    slippageBps: slippageBps ?? 300,
+  });
+  const total = sells.reduce((a, b) => a + b, 0n);
+  return {
+    provider: "aerodrome" as const,
+    approval: { token: USDC_BASE, spender: AERODROME_ROUTER, amount: total.toString() },
+    calls: legs.map((l) => ({ ...l.call, label: `Buy ${l.symbol}` })),
+    legs: legs.map((l, i) => ({
+      symbol: l.symbol,
+      token: l.token,
+      sellAmount: l.usdcIn.toString(),
+      minBuyAmount: l.minOut.toString(),
+      decimals: tokens[i].decimals,
+    })),
+  };
 }
 
 async function quoteO1(tokens: TokenizedStock[], sells: bigint[], taker: Address, slippageBps?: number) {

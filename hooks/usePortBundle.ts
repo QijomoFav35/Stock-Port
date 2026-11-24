@@ -27,7 +27,7 @@ type SendCall = { to: Address; data: Hex; value: Hex; label: string };
 export type PortOpts = {
   attestNonUS: boolean;
   slippageBps?: number;
-  provider?: "o1" | "0x";
+  provider?: "aerodrome" | "o1" | "0x";
   /** "dust" lets a sweep buy the basket with less than the normal $5 minimum. */
   purpose?: "port" | "dust";
 };
@@ -52,7 +52,7 @@ export function usePortBundle(walletClient: WalletClient | undefined, account: A
 
         setStatus("quoting");
         setStep("Fetching best routes");
-        const getQuote = async (provider?: "o1" | "0x") => {
+        const getQuote = async (provider?: "aerodrome" | "o1" | "0x") => {
           const res = await fetch("/api/swap/quote", {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -72,10 +72,10 @@ export function usePortBundle(walletClient: WalletClient | undefined, account: A
         };
         let quote = await getQuote(opts.provider);
         // Smart wallets (Base Account, Coinbase Smart Wallet) can't produce the 65-byte signature o1's
-        // Permit2 legs need. A deployed smart wallet has code, so route it through 0x from the start.
+        // Permit2 legs need. A deployed smart wallet has code, so route it through Aerodrome instead.
         if (!opts.provider && quote.provider === "o1" && quote.calls.some((c) => c.permit2)) {
           const code = await publicClient.getCode({ address: account });
-          if (code && code !== "0x") quote = await getQuote("0x");
+          if (code && code !== "0x") quote = await getQuote("aerodrome");
         }
 
         const total = BigInt(quote.totalUsdc);
@@ -123,7 +123,7 @@ export function usePortBundle(walletClient: WalletClient | undefined, account: A
           if (!(e instanceof NonStandardSignatureError)) throw e;
           setStatus("quoting");
           setStep("Switching to a route your wallet supports");
-          return await portRef.current!(usdcAmount, { ...opts, provider: "0x" });
+          return await portRef.current!(usdcAmount, { ...opts, provider: "aerodrome" });
         }
 
         const caps = await getBaseCapabilities(walletClient, account);
