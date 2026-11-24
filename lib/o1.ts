@@ -33,6 +33,9 @@ function normalizeUnsigned(u: RawUnsigned): Pick<O1Tx, "to" | "data" | "value" |
   if (typeof u === "string") {
     const tx = parseTransaction(u as Hex);
     if (!tx.to) throw new Error("o1 returned a transaction with no `to`");
+    if (tx.chainId !== undefined && tx.chainId !== BASE_CHAIN_ID) {
+      throw new Error(`o1 returned a tx for chain ${tx.chainId}, expected ${BASE_CHAIN_ID}`);
+    }
     return { to: getAddress(tx.to), data: tx.data ?? "0x", value: toHex(tx.value ?? 0n), gasLimit: tx.gas ? toHex(tx.gas) : undefined };
   }
   if (u.chainId !== undefined && Number(u.chainId) !== BASE_CHAIN_ID) {

@@ -4,7 +4,7 @@
 // Run from the project folder:
 //   npm run check-routes                 (uses a $5 test split and a placeholder wallet address)
 //   npm run check-routes -- 0xYourWallet 20
-import { createPublicClient, http, parseAbi } from "viem";
+import { createPublicClient, http, parseAbi, parseTransaction } from "viem";
 import { base } from "viem/chains";
 
 const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
@@ -129,8 +129,11 @@ async function tryO1(token, usdc) {
   const permit2 = body.transactions.some((t) => t.permit2) ? ", uses Permit2" : "";
   // Describe each step so we can see what o1 asks the wallet to do (shown only with --details).
   const steps = body.transactions.map((t, i) => {
-    const u = typeof t.unsigned === "string" ? { raw: t.unsigned } : t.unsigned ?? {};
-    if (u.raw) return `      step ${i + 1}: raw signed-tx format (${String(u.raw).slice(0, 12)}...)`;
+    let u = t.unsigned ?? {};
+    if (typeof u === "string") {
+      const tx = parseTransaction(u);
+      u = { to: tx.to, data: tx.data, value: tx.value ?? 0n, chainId: tx.chainId };
+    }
     const data = String(u.data ?? "0x");
     const sel = data.slice(0, 10);
     let what = `call ${sel}`;
@@ -140,7 +143,7 @@ async function tryO1(token, usdc) {
       what = `APPROVE spender ${spender} amount ${amount === 2n ** 256n - 1n ? "UNLIMITED" : `${Number(amount) / 1e6} USDC`}`;
     }
     const usdcTarget = String(u.to ?? "").toLowerCase() === USDC.toLowerCase() ? " (USDC contract)" : "";
-    return `      step ${i + 1}: to ${u.to}${usdcTarget} | ${what} | value ${u.value ?? 0}${t.permit2 ? " | Permit2 signature" : ""}`;
+    return `      step ${i + 1}: to ${u.to}${usdcTarget} | ${what} | value ${u.value ?? 0} | chain ${u.chainId ?? "?"}${t.permit2 ? " | Permit2 signature" : ""}`;
   });
   return `OK (${body.transactions.length} tx${permit2})${showDetails ? "\n" + steps.join("\n") : ""}`;
 }
