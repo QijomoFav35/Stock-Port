@@ -136,8 +136,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             Open 24/7, every move in one tx, self-custody all the way.
           </p>
           <div className="r4" style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 34, flexWrap: "wrap" }}>
-            <a href="#gates" className="btn btn-blue">
-              See all gates
+            <a href="#routes" className="btn btn-blue">
+              Pick your route
             </a>
             <a href="#borrow" className="btn btn-ghost">
               Borrow against your stocks
@@ -182,7 +182,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           </div>
         </header>
 
-        <section id="gates" className="wrap" style={{ position: "relative", paddingBottom: 56, scrollMarginTop: 80 }}>
+        <section id="routes" className="wrap" style={{ position: "relative", paddingBottom: 56, scrollMarginTop: 80 }}>
           <GatesBoard />
         </section>
       </div>
@@ -338,7 +338,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           {(
             [
               ["ph-wallet", "Connect your wallet", "Base Account, MetaMask, Rabby, Rainbow or WalletConnect. Your keys never leave your wallet."],
-              ["ph-arrows-left-right", "Pick a gate", "Borrow, guard your loan, buy a basket, rotate or sweep dust. Each move is one review and one signature."],
+              ["ph-arrows-left-right", "Pick a route", "Borrow, guard your loan, buy a basket, rotate or sweep dust. Each move is one review and one signature."],
               ["ph-eye", "Verify onchain", "Every tx carries our Builder Code and shows up on Basescan. Don't trust, verify."],
             ] as [IconName, string, string][]
           ).map(([icon, title, body]) => (
@@ -355,8 +355,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
 
       <div className="mbar-pad" />
       <div className="mbar">
-        <a href="#gates" className="btn btn-blue">
-          See all gates
+        <a href="#routes" className="btn btn-blue">
+          Pick your route
         </a>
       </div>
     </main>

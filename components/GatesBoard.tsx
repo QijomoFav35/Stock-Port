@@ -24,15 +24,15 @@ const STATUS: Record<Status, { background: string; color: string }> = {
 
 export default function GatesBoard() {
   return (
-    <nav className="board" aria-label="Stock Port gates">
+    <nav className="board" aria-label="Stock Port routes">
       <div className="board-head" aria-hidden="true">
-        <span>Gate</span>
+        <span>Route</span>
         <span>Departure</span>
         <span className="board-what">Destination</span>
         <span style={{ textAlign: "right" }}>Status</span>
       </div>
       {GATES.map((g) => (
-        <a key={g.gate} href={g.href} className="board-row" aria-label={`Gate ${g.gate}, ${g.action.toLowerCase()}: ${g.what}. ${g.status}.`}>
+        <a key={g.gate} href={g.href} className="board-row" aria-label={`Route ${g.gate}, ${g.action.toLowerCase()}: ${g.what}. ${g.status}.`}>
           <span className="num board-gate" aria-hidden="true">
             {g.gate}
           </span>

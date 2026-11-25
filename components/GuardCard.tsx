@@ -32,7 +32,7 @@ const SAMPLE: GuardState = {
   health: 1.62,
 };
 
-/** Gate A2: Loan Guard. A USDC reserve that repays your Aave loan before liquidation. */
+/** Route A2: Loan Guard. A USDC reserve that repays your Aave loan before liquidation. */
 export default function GuardCard() {
   const { address } = useAccount();
   const { data: walletClient } = useWalletClient();
