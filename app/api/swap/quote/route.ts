@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
           ? quoteO1(tokens, sells, taker, slippageBps)
           : quote0x(tokens, sells, taker, slippageBps);
 
-    let quote: Omit<PortQuote, "totalUsdc" | "expiresAt"> | undefined;
+    let quote: Omit<PortQuote, "totalUsdc" | "expiresAt" | "peg"> | undefined;
     let firstError: unknown;
     for (const p of order) {
       try {
