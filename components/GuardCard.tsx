@@ -6,6 +6,7 @@ import ConnectButton from "@/components/ConnectButton";
 import { useLoanGuard } from "@/hooks/useLoanGuard";
 import { LOAN_GUARD } from "@/lib/loanGuard";
 import { basescanAddress } from "@/lib/txGuard";
+import GuardLog from "@/components/GuardLog";
 
 const usd = (raw: bigint) => "$" + Number(formatUnits(raw, 6)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const num = (v: string) => (Number.isFinite(Number(v)) ? Number(v) : NaN);
@@ -142,6 +143,7 @@ export default function GuardCard() {
           )}
         </>
       )}
+      <GuardLog />
     </section>
   );
 }
