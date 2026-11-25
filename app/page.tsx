@@ -9,6 +9,7 @@ import Guardrails from "@/components/Guardrails";
 import StockRadar from "@/components/StockRadar";
 import LeaderboardCard from "@/components/LeaderboardCard";
 import BorrowCard from "@/components/BorrowCard";
+import GuardCard from "@/components/GuardCard";
 import GatesBoard from "@/components/GatesBoard";
 import Icon from "@/components/Icon";
 import type { IconName } from "@/lib/icons";
@@ -199,6 +200,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       <section className="wrap" style={{ paddingTop: 64, paddingBottom: 0, scrollMarginTop: 80 }}>
         <div style={{ maxWidth: 640, margin: "0 auto", scrollMarginTop: 80 }}>
           <BorrowCard geoBlocked={geoBlocked} />
+          <div style={{ marginTop: 24 }}>
+            <GuardCard />
+          </div>
         </div>
       </section>
 

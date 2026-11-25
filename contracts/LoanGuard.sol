@@ -79,6 +79,11 @@ contract LoanGuard {
     }
 
     mapping(address => Guard) public guards;
+    /// Everyone who ever armed a guard, so keepers can find positions without an indexer.
+    address[] public users;
+    mapping(address => bool) private known;
+    uint256 public totalRepaid;
+    uint256 public protectCount;
     bool private locked;
 
     event Funded(address indexed user, uint256 amount, uint256 reserve);
@@ -107,6 +112,10 @@ contract LoanGuard {
     function configure(uint256 trigger, uint256 target, uint256 weekendTrigger) external {
         if (trigger < MIN_TRIGGER || target <= trigger || target > MAX_TARGET) revert BadConfig();
         if (weekendTrigger != 0 && (weekendTrigger < trigger || weekendTrigger >= target)) revert BadConfig();
+        if (!known[msg.sender]) {
+            known[msg.sender] = true;
+            users.push(msg.sender);
+        }
         Guard storage g = guards[msg.sender];
         g.trigger = uint64(trigger);
         g.target = uint64(target);
@@ -129,6 +138,10 @@ contract LoanGuard {
         g.reserve = uint128(uint256(g.reserve) - amount);
         if (!USDC.transfer(msg.sender, amount)) revert TransferFailed();
         emit Withdrawn(msg.sender, amount, g.reserve);
+    }
+
+    function userCount() external view returns (uint256) {
+        return users.length;
     }
 
     // ---------------------------------------------------------------- the guard
@@ -185,6 +198,8 @@ contract LoanGuard {
         if (repaid > amount) revert TransferFailed();
         g.reserve = uint128(uint256(g.reserve) - repaid);
         g.lastProtect = uint64(block.timestamp);
+        totalRepaid += repaid;
+        protectCount += 1;
 
         (,, uint256 healthAfter,,,,) = SPOKE.getUserAccountData(user);
         emit Protected(user, msg.sender, repaid, healthBefore, healthAfter, weekend);

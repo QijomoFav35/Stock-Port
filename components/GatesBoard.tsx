@@ -7,7 +7,7 @@ const GATES: Gate[] = [
   { gate: "A3", action: "ROTATE", what: "Switch baskets in one tx", status: "Open", href: "/?mode=rotate#buy" },
   { gate: "A4", action: "SWEEP", what: "Turn wallet dust into stocks", status: "Open", href: "/dust" },
   { gate: "A5", action: "RACE", what: "Which basket is winning this week", status: "Open", href: "#race" },
-  { gate: "B1", action: "LOAN GUARD", what: "Agent that repays before liquidation", status: "Next", href: "/next" },
+  { gate: "B1", action: "LOAN GUARD", what: "Never get liquidated in your sleep", status: "Next", href: "#guard" },
 ];
 
 const STATUS: Record<Gate["status"], { background: string; color: string }> = {

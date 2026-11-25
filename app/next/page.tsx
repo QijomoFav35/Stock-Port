@@ -11,7 +11,7 @@ const ITEMS: Item[] = [
   { tag: "Live", title: "Borrow against your stocks", body: "Deposit NVDAc, AAPLc, MSFTc, GOOGLc, AMZNc, METAc, TSLAc or SPCXc and borrow USDC on Aave V4 in one tx. Live health and liquidation price." },
   { tag: "Live", title: "Themed baskets and Rotate", body: "Buy Mag 7, AI Bubble, Elon Mode and more from $5, and rotate between them in one tx." },
   { tag: "Live", title: "Dust Sweep", body: "Sweep small balances into tokenized stocks." },
-  { tag: "Next", title: "Loan Guard", body: "An agent that pays down your loan from a USDC reserve you set before you get liquidated. It can only repay, never move your stocks." },
+  { tag: "Next", title: "Loan Guard", body: "A USDC reserve that pays down your Aave loan before liquidation, with a weekend shield for the Monday open. Repay-only contract, no owner, anyone can trigger it." },
   { tag: "Next", title: "Buy and borrow in one tx", body: "Spend USDC on a stock, deposit it and borrow against it, all in one batch." },
   { tag: "Next", title: "Borrow from X", body: "Ask @bankrbot to open, top up or repay your Stock Port loan from a post." },
   { tag: "Soon", title: "Best-rate routing", body: "Send each loan to whichever lender on Base has the lower rate and the deeper USDC." },
