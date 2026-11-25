@@ -1,7 +1,7 @@
 /**
  * POST /api/swap/quote
  * Body: { taker, usdcAmount (decimal string, e.g. "10"), attestNonUS: true, slippageBps? }
- * Returns the swap calls that mirror the Agent basket weights.
+ * Returns the swap calls that mirror the chosen basket's weights (`basketId`, lib/baskets.ts).
  *
  * Provider order: Aerodrome direct (default, no key), then 0x (if ZEROX_API_KEY), then o1 (if O1_API_KEY).
  * If one fails for any leg, the whole basket is re-quoted with the next, so a buy never dies on one
@@ -16,7 +16,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { formatUnits, getAddress, parseUnits, type Address, type Hex } from "viem";
 import { GEO_HEADER, isTradingBlocked } from "@/lib/geo";
-import { MAX_PORT_USDC, MIN_DUST_PORT_USDC, MIN_PORT_USDC, USDC_BASE, USDC_DECIMALS, parseBasket } from "@/lib/constants";
+import { MAX_PORT_USDC, MIN_DUST_PORT_USDC, MIN_PORT_USDC, USDC_BASE, USDC_DECIMALS } from "@/lib/constants";
+import { BASKET_IDS, getBasket } from "@/lib/baskets";
 import { resolveSymbols, type TokenizedStock } from "@/lib/tokenizedStocks";
 import { getZeroExQuote } from "@/lib/zeroEx";
 import { createO1BuyOrder, type Eip712 } from "@/lib/o1";
@@ -36,6 +37,7 @@ const Body = z.object({
   slippageBps: z.number().int().min(10).max(500).optional(),
   provider: z.enum(["aerodrome", "o1", "0x"]).optional(),
   purpose: z.enum(["port", "dust"]).optional(),
+  basketId: z.enum(BASKET_IDS).optional(),
 });
 
 type Provider = "aerodrome" | "o1" | "0x";
@@ -71,7 +73,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "bad_request", issues: parsed.error.issues }, { status: 400 });
   }
-  const { usdcAmount, slippageBps, provider: forced, purpose } = parsed.data;
+  const { usdcAmount, slippageBps, provider: forced, purpose, basketId } = parsed.data;
   const taker = getAddress(parsed.data.taker);
   const amt = Number(usdcAmount);
   const min = purpose === "dust" ? MIN_DUST_PORT_USDC : MIN_PORT_USDC;
@@ -80,7 +82,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const basket = parseBasket();
+    const basket = getBasket(basketId).legs;
     const tokens = await resolveSymbols(basket.map((b) => b.symbol));
     const total = parseUnits(usdcAmount, USDC_DECIMALS);
 

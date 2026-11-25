@@ -12,7 +12,7 @@
 import { getAddress, type Address } from "viem";
 import { publicClient } from "@/lib/publicClient";
 import { USDC_BASE, USDC_DECIMALS } from "@/lib/constants";
-import { STOCK_FEEDS, findDeepestPool } from "@/lib/aerodrome";
+import { feedFor, findDeepestPool } from "@/lib/aerodrome";
 import { NAV_STALE_MS, type TokenizedStock } from "@/lib/tokenizedStocks";
 import { pegStatus, type PegHealth } from "@/lib/peg";
 
@@ -65,8 +65,8 @@ const cache = new Map<string, { at: number; value: PegHealth }>();
 
 async function readPeg(t: TokenizedStock): Promise<PegHealth> {
   const symbol = t.symbol;
-  const feed = STOCK_FEEDS[symbol];
   const token = getAddress(t.contract_address);
+  const feed = await feedFor(symbol, token);
   const [best, round, feedDecimals] = await Promise.all([
     findDeepestPool(token),
     feed ? publicClient.readContract({ address: feed, abi: feedAbi, functionName: "latestRoundData" }) : undefined,

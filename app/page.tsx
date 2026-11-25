@@ -1,21 +1,18 @@
 import { headers } from "next/headers";
 import { GEO_HEADER, isTradingBlocked } from "@/lib/geo";
-import { parseBasket } from "@/lib/constants";
-import { listTokenizedStocks, resolveSymbols, type TokenizedStock } from "@/lib/tokenizedStocks";
+import { BASKETS, UNIVERSE, getBasket } from "@/lib/baskets";
+import { listTokenizedStocks, type TokenizedStock } from "@/lib/tokenizedStocks";
 import { getPegHealth } from "@/lib/pegHealth";
 import type { PegHealth } from "@/lib/peg";
-import PegChip from "@/components/PegChip";
+import BasketDesk, { type StockInfo } from "@/components/BasketDesk";
 import Guardrails from "@/components/Guardrails";
 import StockRadar from "@/components/StockRadar";
-import PortCard from "@/components/PortCard";
 import Icon from "@/components/Icon";
 import type { IconName } from "@/lib/icons";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
 
-/** Base palette colors per basket leg, in order. */
-const LEG_COLORS = ["#0000FF", "#3C8AFF", "#FEA8CD", "#FFD12F", "#B6F569"];
 const WALLETS: [IconName, string][] = [
   ["w-coinbase", "Base Account"],
   ["w-metamask", "MetaMask"],
@@ -39,33 +36,34 @@ function TokenLogo({ t, size = 40 }: { t?: TokenizedStock; size?: number }) {
   );
 }
 
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const geoBlocked = isTradingBlocked((await headers()).get(GEO_HEADER));
-  const basket = parseBasket();
-  let tokens: TokenizedStock[] = [];
+  const sp = await searchParams;
+  const initial = getBasket(typeof sp.basket === "string" ? sp.basket : undefined);
   let all: TokenizedStock[] = [];
   let peg: PegHealth[] = [];
   let basketError: string | undefined;
   try {
-    tokens = await resolveSymbols(basket.map((b) => b.symbol));
-    [all, peg] = await Promise.all([listTokenizedStocks(), getPegHealth(tokens)]);
+    all = await listTokenizedStocks();
+    const universe = all.filter((t) => (UNIVERSE as readonly string[]).includes(t.symbol));
+    peg = await getPegHealth(universe);
   } catch (e) {
     basketError = (e as Error).message;
   }
-  const legs = basket.map((b, i) => ({
-    ...b,
-    token: tokens[i],
-    peg: peg.find((p) => p.symbol === tokens[i]?.symbol),
-    color: LEG_COLORS[i % LEG_COLORS.length],
-  }));
-  const targets = legs.map((l) => `${l.symbol} ${Math.round(l.weightBps / 100)}`).join(" · ");
+  const bySymbol = new Map(all.map((t) => [t.symbol, t]));
+  const stocks: Record<string, StockInfo> = {};
+  for (const sym of UNIVERSE) {
+    const t = bySymbol.get(sym);
+    if (t) stocks[sym] = { symbol: sym, name: t.name, icon: t.icon_url, nav: t.nav_price };
+  }
+  const pegBy = Object.fromEntries(peg.map((p) => [p.symbol, p]));
+  const legs = UNIVERSE.map((sym) => ({ symbol: sym, token: bySymbol.get(sym) }));
 
   const tickerItems = legs.map((l) => (
     <span key={l.symbol} className="mq-i">
       <TokenLogo t={l.token} size={28} />
       {l.symbol}
       {l.token?.nav_price ? <span className="num">${l.token.nav_price.toFixed(2)}</span> : null}
-      <span style={{ fontWeight: 500, opacity: 0.85 }}>{Math.round(l.weightBps / 100)}%</span>
     </span>
   ));
   tickerItems.push(
@@ -129,12 +127,12 @@ export default async function Home() {
             Own what the AI <em>owns.</em>
           </h1>
           <p className="r3 muted" style={{ maxWidth: 620, margin: "22px auto 0", fontSize: 19 }}>
-            An AI agent runs a basket of tokenized stocks fully onchain. Copy its bag from $5 in one tx. Self-custody: the
-            tokens land in your wallet.
+            Themed baskets of tokenized stocks on Base: Mag 7, AI Bubble, Pre-IPO and more. Buy one from $5 in one tx,
+            rotate between them anytime. Self-custody: the tokens land in your wallet.
           </p>
           <div className="r4" style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 34, flexWrap: "wrap" }}>
             <a href="#buy" className="btn btn-blue">
-              Copy the Agent from $5
+              Pick a basket from $5
             </a>
             <a href="/dust" className="btn btn-ghost">
               <Icon name="ph-broom" size={18} />
@@ -180,69 +178,6 @@ export default async function Home() {
           </div>
         </header>
 
-        <section className="wrap r4" style={{ position: "relative", paddingBottom: 24 }}>
-          <div className="card pad" style={{ padding: 36 }}>
-            <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-              <span
-                style={{
-                  width: 52,
-                  height: 52,
-                  borderRadius: 14,
-                  background: "rgba(0,0,255,.12)",
-                  color: "var(--blue)",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flex: "none",
-                }}
-              >
-                <Icon name="ph-robot" size={28} />
-              </span>
-              <div>
-                <div className="eyebrow">The Agent&apos;s basket · tokenized stocks</div>
-                <div className="disp" style={{ fontSize: 28, marginTop: 4 }}>
-                  {legs.length} stocks, one tx
-                </div>
-              </div>
-            </div>
-
-            {basketError && (
-              <p style={{ color: "var(--red)", fontSize: 14, marginTop: 20 }}>Basket unavailable: {basketError}</p>
-            )}
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
-                gap: 24,
-                marginTop: 28,
-                paddingTop: 24,
-                borderTop: "1px solid var(--line)",
-              }}
-            >
-              {legs.map((l) => (
-                <div key={l.symbol} style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                  <TokenLogo t={l.token} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, gap: 8 }}>
-                      <span>{l.symbol}</span>
-                      <span className="num">{l.token?.nav_price ? `$${l.token.nav_price.toFixed(2)}` : "—"}</span>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--g60)", gap: 8 }}>
-                      <span>{Math.round(l.weightBps / 100)}% of basket</span>
-                      <PegChip peg={l.peg} compact />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="bar" aria-hidden="true" style={{ display: "flex", height: 6, borderRadius: 3, overflow: "hidden", marginTop: 22, gap: 3 }}>
-              {legs.map((l) => (
-                <span key={l.symbol} style={{ flex: l.weightBps, background: l.color }} />
-              ))}
-            </div>
-          </div>
-        </section>
       </div>
 
       <div className="mq" role="marquee" aria-label="Basket tokens and how Stock Port works">
@@ -257,17 +192,25 @@ export default async function Home() {
       </div>
 
       <section id="buy" className="wrap" style={{ paddingTop: 64, paddingBottom: 32, scrollMarginTop: 80 }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div className="eyebrow">Pick a theme</div>
+          <h2 className="disp" style={{ fontSize: "clamp(34px,4.6vw,52px)", lineHeight: 1.05, margin: "10px 0 0" }}>
+            {BASKETS.length} baskets. <em>Rotate anytime.</em>
+          </h2>
+        </div>
+        {basketError && (
+          <p style={{ color: "var(--red)", fontSize: 14, marginBottom: 16 }}>Prices unavailable right now: {basketError}</p>
+        )}
+        <BasketDesk baskets={BASKETS} initialId={initial.id} stocks={stocks} peg={pegBy} geoBlocked={geoBlocked} />
         <div
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
             gap: 24,
             alignItems: "start",
+            marginTop: 24,
           }}
         >
-          <PortCard geoBlocked={geoBlocked} />
-
-          <div style={{ display: "grid", gap: 24 }}>
           <Guardrails />
           <div className="card pad" style={{ padding: 36 }}>
             <div className="eyebrow">How the basket works</div>
@@ -283,10 +226,10 @@ export default async function Home() {
               <div className="rule">
                 <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <Icon name="ph-scales" size={18} />
-                  Targets
+                  Baskets
                 </span>
                 <span className="num" style={{ fontSize: 14, textAlign: "right" }}>
-                  {targets}
+                  {BASKETS.length} themes · {UNIVERSE.length} stocks
                 </span>
               </div>
               <div className="rule">
@@ -313,13 +256,12 @@ export default async function Home() {
               Every tx carries the Stock Port Builder Code, so anyone can verify it.
             </p>
           </div>
-          </div>
         </div>
       </section>
 
       {all.length > 0 && (
         <section className="wrap" style={{ paddingTop: 40, paddingBottom: 16 }}>
-          <StockRadar all={all} basket={basket.map((b) => b.symbol)} peg={peg} />
+          <StockRadar all={all} basket={[...UNIVERSE]} peg={peg} />
         </section>
       )}
 
@@ -338,8 +280,8 @@ export default async function Home() {
         >
           {(
             [
-              ["ph-chart-line-up", "Pick an amount", "From $5 in USDC, or sweep your dust first. The basket mix is set by the Agent."],
-              ["ph-arrows-left-right", "You copy the bag", "One review, one signature. Tokenized stocks go straight to your wallet."],
+              ["ph-chart-line-up", "Pick a theme", "Mag 7, AI Bubble, Pre-IPO and more. From $5 in USDC, or sweep your dust first."],
+              ["ph-arrows-left-right", "Buy the basket", "One review, one signature. Tokenized stocks go straight to your wallet."],
               ["ph-eye", "Verify onchain", "Every tx is tagged with our Builder Code and visible on Basescan. Don't trust, verify."],
             ] as [IconName, string, string][]
           ).map(([icon, title, body]) => (
@@ -368,7 +310,7 @@ export default async function Home() {
       <div className="mbar-pad" />
       <div className="mbar">
         <a href="#buy" className="btn btn-blue">
-          Copy the Agent from $5
+          Pick a basket from $5
         </a>
       </div>
     </main>

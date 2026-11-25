@@ -13,7 +13,7 @@ const ATTEST_KEY = "sp_attest_non_us";
 const PRESETS = [5, 10, 25, 100];
 const ROUTE = { o1: "o1 Exchange", "0x": "0x", aerodrome: "Aerodrome" } as const;
 
-export default function PortCard({ geoBlocked }: { geoBlocked: boolean }) {
+export default function PortCard({ geoBlocked, basket }: { geoBlocked: boolean; basket: { id: string; name: string } }) {
   const { address } = useAccount();
   const { data: walletClient } = useWalletClient();
   const { port, confirm, cancel, plan, status, step, error, result, builderCodeConfigured } = usePortBundle(walletClient, address);
@@ -74,7 +74,7 @@ export default function PortCard({ geoBlocked }: { geoBlocked: boolean }) {
           Your bag now matches the Agent&apos;s. ${spent.toFixed(2)} routed via {ROUTE[result.quote.provider]}
           {result.mode === "batch" ? " in one batched tx." : ` in ${result.txHashes.length} txs.`}
         </p>
-        <ShareButtons hashes={result.txHashes} spent={spent} />
+        <ShareButtons hashes={result.txHashes} spent={spent} basket={basket} />
         <div style={{ marginTop: 16, display: "grid", gap: 4, fontSize: 14 }}>
           {result.txHashes.map((h, i) => (
             <a key={h} href={`https://basescan.org/tx/${h}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", gap: 4, justifyContent: "center", alignItems: "center" }}>
@@ -88,7 +88,7 @@ export default function PortCard({ geoBlocked }: { geoBlocked: boolean }) {
 
   return (
     <section id="port" className="card pad" style={{ padding: 36 }}>
-      <div className="eyebrow">Buy the basket</div>
+      <div className="eyebrow">Buy {basket.name}</div>
       <label
         style={{
           display: "flex",
@@ -167,7 +167,7 @@ export default function PortCard({ geoBlocked }: { geoBlocked: boolean }) {
         ) : (
           <>
             <button
-              onClick={() => port(amount, { attestNonUS: attest, review: true }).catch(() => {})}
+              onClick={() => port(amount, { attestNonUS: attest, review: true, basketId: basket.id }).catch(() => {})}
               disabled={!attest || !validAmount || busy || !builderCodeConfigured}
               className="btn btn-blue"
               style={{ width: "100%", height: 58, fontSize: 17 }}

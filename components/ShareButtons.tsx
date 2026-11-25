@@ -2,16 +2,26 @@
 import { useState } from "react";
 import type { Hash } from "viem";
 import Icon from "@/components/Icon";
-import { shareOnXUrl, shareUrl } from "@/lib/shareLinks";
+import { shareOnXUrl, shareUrl, type ShareBasket } from "@/lib/shareLinks";
 
-export default function ShareButtons({ hashes, spent, dust = false }: { hashes: Hash[]; spent: number; dust?: boolean }) {
+export default function ShareButtons({
+  hashes,
+  spent,
+  dust = false,
+  basket,
+}: {
+  hashes: Hash[];
+  spent: number;
+  dust?: boolean;
+  basket?: ShareBasket;
+}) {
   const [copied, setCopied] = useState(false);
   if (!hashes.length) return null;
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const link = shareUrl(origin, hashes, dust);
+  const link = shareUrl(origin, hashes, dust, basket);
   return (
     <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
-      <a href={shareOnXUrl(origin, hashes, spent, dust)} target="_blank" rel="noreferrer" className="btn btn-ink" style={{ flex: 1, height: 48, fontSize: 15, padding: "0 12px", minWidth: 0 }}>
+      <a href={shareOnXUrl(origin, hashes, spent, dust, basket)} target="_blank" rel="noreferrer" className="btn btn-ink" style={{ flex: 1, height: 48, fontSize: 15, padding: "0 12px", minWidth: 0 }}>
         <Icon name="ph-x-logo" size={18} />
         Share on X
       </a>

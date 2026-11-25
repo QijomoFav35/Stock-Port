@@ -99,6 +99,16 @@ export async function resolveSymbols(symbols: string[]): Promise<TokenizedStock[
   return symbols.map((s) => bySym.get(s.toLowerCase())!);
 }
 
+const NavFeedsSchema = z.object({
+  nav_feeds: z.array(z.object({ contract_address: addr, nav_feed_address: addr })),
+});
+
+/** Chainlink NAV feed per token contract (lowercased), from the API. Cached 1h. */
+export async function getNavFeeds(): Promise<Map<string, Address>> {
+  const { nav_feeds } = await get("/nav-feeds", NavFeedsSchema, 3600);
+  return new Map(nav_feeds.map((f) => [f.contract_address.toLowerCase(), f.nav_feed_address as Address]));
+}
+
 /** NAV older than this is flagged stale in the UI (feeds hold value outside market hours). */
 export const NAV_STALE_MS = 72 * 3600 * 1000;
 export function isNavStale(t: TokenizedStock, now = Date.now()) {

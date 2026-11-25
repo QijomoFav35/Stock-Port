@@ -10,6 +10,7 @@
 import { encodeFunctionData, getAddress, type Address, type Hex } from "viem";
 import { publicClient } from "@/lib/publicClient";
 import { USDC_BASE } from "@/lib/constants";
+import { getNavFeeds } from "@/lib/tokenizedStocks";
 
 export const AERODROME_ROUTER: Address = getAddress(
   process.env.AERODROME_ROUTER ?? "0x698Cb2b6dd822994581fEa6eA4Fc755d1363A92F",
@@ -29,6 +30,11 @@ export const STOCK_FEEDS: Record<string, Address> = {
   TSLAc: "0xFaf869185383a24F8cb00e27BdA6b63B9905DCb4",
   AMZNc: "0x06A8E4b3aBB3B7543d8396FB2B763d22820cB295",
 };
+
+/** Feed for a stock: the pinned address above, else the one the Tokenized Stocks API lists. */
+export async function feedFor(symbol: string, token: Address): Promise<Address | undefined> {
+  return STOCK_FEEDS[symbol] ?? (await getNavFeeds().catch(() => undefined))?.get(token.toLowerCase());
+}
 
 /** Skip pools thinner than this (USDC, 6 decimals). The Chainlink floor on min-out still protects every buy. */
 const MIN_POOL_USDC = 1_000n * 10n ** 6n;
@@ -116,7 +122,7 @@ export async function buildAerodromeBuys(p: {
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
   return Promise.all(
     p.legs.map(async (leg) => {
-      const feed = STOCK_FEEDS[leg.symbol];
+      const feed = await feedFor(leg.symbol, leg.token);
       if (!feed) throw new Error(`No price feed configured for ${leg.symbol}`);
       const [best, round, feedDecimals] = await Promise.all([
         findDeepestPool(leg.token),

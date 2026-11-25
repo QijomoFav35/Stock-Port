@@ -35,6 +35,8 @@ export type PortOpts = {
   provider?: "aerodrome" | "o1" | "0x";
   /** "dust" lets a sweep buy the basket with less than the normal $5 minimum. */
   purpose?: "port" | "dust";
+  /** Which themed basket to buy (lib/baskets.ts). Server default when omitted. */
+  basketId?: string;
   /** Pause on a plain-English summary until the user presses Confirm (see `plan`). */
   review?: boolean;
 };
@@ -86,6 +88,7 @@ export function usePortBundle(walletClient: WalletClient | undefined, account: A
               slippageBps: opts.slippageBps,
               provider,
               purpose: opts.purpose,
+              basketId: opts.basketId,
             }),
           });
           const q = (await res.json()) as PortQuote & { error?: string; message?: string; symbols?: string[] };
