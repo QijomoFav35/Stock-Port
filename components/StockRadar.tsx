@@ -4,13 +4,21 @@ import PegChip from "@/components/PegChip";
 
 const usd = (n: number) => "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-/** Every tokenized stock listed on Base, basket first. Peg health only for basket legs (it costs RPC reads). */
+/** Top Nasdaq-100 names listed on Base without a live price yet. They show N/A and fill in once the feed goes live. */
+const WATCHLIST = ["AMDc", "PLTRc", "HOODc", "AVGOc", "NFLXc"];
+
+/** Tokenized stocks with a live price on Base (basket first), plus a short watchlist. Peg health only for basket legs. */
 export default function StockRadar({ all, basket, peg }: { all: TokenizedStock[]; basket: string[]; peg: PegHealth[] }) {
   const inBasket = new Set(basket.map((s) => s.toLowerCase()));
-  const rows = [...all].sort((a, b) => {
-    const d = Number(inBasket.has(b.symbol.toLowerCase())) - Number(inBasket.has(a.symbol.toLowerCase()));
-    return d || a.symbol.localeCompare(b.symbol);
-  });
+  const priced = all.filter((t) => t.nav_price);
+  const watch = WATCHLIST.map((sym) => all.find((t) => t.symbol === sym && !t.nav_price)).filter((t): t is TokenizedStock => !!t);
+  const rows = [
+    ...priced.sort((a, b) => {
+      const d = Number(inBasket.has(b.symbol.toLowerCase())) - Number(inBasket.has(a.symbol.toLowerCase()));
+      return d || a.symbol.localeCompare(b.symbol);
+    }),
+    ...watch,
+  ];
   const pegBy = new Map(peg.map((p) => [p.symbol.toLowerCase(), p]));
   return (
     <div className="card" style={{ padding: 0, overflow: "hidden" }}>
@@ -18,11 +26,11 @@ export default function StockRadar({ all, basket, peg }: { all: TokenizedStock[]
         <div>
           <div className="eyebrow">Stock radar</div>
           <div className="disp" style={{ fontSize: 28, marginTop: 6 }}>
-            Every tokenized stock <em>on Base.</em>
+            Live-priced stocks <em>on Base.</em>
           </div>
         </div>
         <div style={{ fontSize: 13, color: "var(--g60)", maxWidth: 360 }}>
-          {all.length} listed, live from the Coinbase Tokenized Stocks API. The Agent holds the ones on top.
+          {priced.length} of {all.length} listed stocks have a live price in the Coinbase Tokenized Stocks API. {watch.length} more on watch show N/A until their feed goes live.
         </div>
       </div>
       <div style={{ maxHeight: 440, overflowY: "auto", borderTop: "1px solid var(--line)" }}>
@@ -66,10 +74,10 @@ export default function StockRadar({ all, basket, peg }: { all: TokenizedStock[]
               </div>
               <div style={{ textAlign: "right", flex: "none" }}>
                 <div className="num" style={{ fontWeight: 600 }}>
-                  {t.nav_price ? usd(t.nav_price) : "—"}
+                  {t.nav_price ? usd(t.nav_price) : "N/A"}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--g60)", marginTop: 2 }}>
-                  {held ? <PegChip peg={pegBy.get(t.symbol.toLowerCase())} compact /> : t.nav_price ? (stale ? "NAV · stale" : "NAV") : "no NAV"}
+                  {held && t.nav_price ? <PegChip peg={pegBy.get(t.symbol.toLowerCase())} compact /> : t.nav_price ? (stale ? "NAV · stale" : "NAV") : "Price feed soon"}
                 </div>
               </div>
             </div>
