@@ -49,11 +49,29 @@ function normalizeUnsigned(u: RawUnsigned): Pick<O1Tx, "to" | "data" | "value" |
   };
 }
 
-export async function createO1BuyOrder(p: {
+export function createO1BuyOrder(p: {
   signer: Address;
   token: Address;
   /** Human-readable USDC amount to spend (o1 `uiAmount`). Semantics for USDC-quoted buys are inferred: verify with $5. */
   usdcUiAmount: string;
+  slippageBps?: number;
+}): Promise<O1Order> {
+  return createO1Order({ signer: p.signer, token: p.token, uiAmount: p.usdcUiAmount, direction: "buy", slippageBps: p.slippageBps });
+}
+
+/**
+ * Sell `uiAmount` of the stock for USDC. Assumption (not in o1's docs): for a sell, `uiAmount` is the
+ * amount of the token being sold. The Rotate review shows o1's numbers before anything is signed.
+ */
+export function createO1SellOrder(p: { signer: Address; token: Address; tokenUiAmount: string; slippageBps?: number }) {
+  return createO1Order({ signer: p.signer, token: p.token, uiAmount: p.tokenUiAmount, direction: "sell", slippageBps: p.slippageBps });
+}
+
+async function createO1Order(p: {
+  signer: Address;
+  token: Address;
+  uiAmount: string;
+  direction: "buy" | "sell";
   slippageBps?: number;
 }): Promise<O1Order> {
   const key = process.env.O1_API_KEY;
@@ -67,8 +85,8 @@ export async function createO1BuyOrder(p: {
       signerAddress: p.signer,
       tokenAddress: p.token,
       quoteTokenAddress: USDC_BASE,
-      uiAmount: p.usdcUiAmount,
-      direction: "buy",
+      uiAmount: p.uiAmount,
+      direction: p.direction,
       slippageBps: p.slippageBps ?? 300,
       mevProtection: false,
     }),

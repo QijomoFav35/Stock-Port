@@ -168,6 +168,69 @@ export async function buildAerodromeBuys(p: {
   );
 }
 
+export type AerodromeSell = {
+  symbol: string;
+  token: Address;
+  amountIn: bigint;
+  /** Minimum USDC out (6 decimals), floored at the Chainlink price minus slippage. */
+  minUsdc: bigint;
+  call: { to: Address; data: Hex; value: Hex };
+};
+
+/** One exactInputSingle per leg selling the stock for USDC. Throws if a leg has no pool on our router or no feed. */
+export async function buildAerodromeSells(p: {
+  legs: { symbol: string; token: Address; decimals: number; amountIn: bigint }[];
+  recipient: Address;
+  slippageBps: number;
+}): Promise<AerodromeSell[]> {
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 600);
+  return Promise.all(
+    p.legs.map(async (leg) => {
+      const feed = await feedFor(leg.symbol, leg.token);
+      if (!feed) throw new Error(`No price feed for ${leg.symbol}`);
+      const [best, round, feedDecimals] = await Promise.all([
+        findDeepestPool(leg.token),
+        publicClient.readContract({ address: feed, abi: feedAbi, functionName: "latestRoundData" }),
+        publicClient.readContract({ address: feed, abi: feedAbi, functionName: "decimals" }),
+      ]);
+      if (!best) throw new Error(`${leg.symbol}: no Aerodrome USDC pool with enough liquidity`);
+      const answer = round[1];
+      if (answer <= 0n) throw new Error(`${leg.symbol}: price feed returned no price`);
+      // USDC out = amountIn * price. Stock has `decimals`, feed `feedDecimals`, USDC 6.
+      const expected = (leg.amountIn * answer * 10n ** 6n) / 10n ** BigInt(leg.decimals + feedDecimals);
+      const minUsdc = (expected * BigInt(10_000 - p.slippageBps)) / 10_000n;
+      const data = encodeFunctionData({
+        abi: slipstreamRouterAbi,
+        functionName: "exactInputSingle",
+        args: [
+          {
+            tokenIn: leg.token,
+            tokenOut: USDC_BASE,
+            tickSpacing: best.tickSpacing,
+            recipient: p.recipient,
+            deadline,
+            amountIn: leg.amountIn,
+            amountOutMinimum: minUsdc,
+            sqrtPriceLimitX96: 0n,
+          },
+        ],
+      });
+      return { symbol: leg.symbol, token: leg.token, amountIn: leg.amountIn, minUsdc, call: { to: AERODROME_ROUTER, data, value: "0x0" as Hex } };
+    }),
+  );
+}
+
+/** Chainlink price for a stock (USD per token, as a float) or undefined. */
+export async function feedPrice(symbol: string, token: Address): Promise<number | undefined> {
+  const feed = await feedFor(symbol, token);
+  if (!feed) return undefined;
+  const [round, dec] = await Promise.all([
+    publicClient.readContract({ address: feed, abi: feedAbi, functionName: "latestRoundData" }),
+    publicClient.readContract({ address: feed, abi: feedAbi, functionName: "decimals" }),
+  ]);
+  return round[1] > 0n ? Number(round[1]) / 10 ** dec : undefined;
+}
+
 let factoryPromise: Promise<Address> | undefined;
 /** The CL factory this router swaps through (read on chain, cached per server process). */
 export function routerFactory(): Promise<Address> {

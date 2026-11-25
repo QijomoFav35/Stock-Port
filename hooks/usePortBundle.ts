@@ -18,7 +18,7 @@ import { encodeFunctionData, erc20Abi, formatUnits, type Address, type Hash, typ
 import { base } from "viem/chains";
 import { DATA_SUFFIX, requireDataSuffix, withBuilderCode } from "@/lib/attribution";
 import { O1_SIGNATURE_PLACEHOLDER, type Eip712 } from "@/lib/o1";
-import type { PortCall, PortQuote } from "@/app/api/swap/quote/route";
+import type { PortCall, PortQuote } from "@/lib/basketQuote";
 import { publicClient } from "@/lib/publicClient";
 import { getBaseCapabilities, shortError } from "@/lib/walletCaps";
 import { checkApproval, checkSwapCall, contractName } from "@/lib/txGuard";

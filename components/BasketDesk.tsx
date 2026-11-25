@@ -1,11 +1,12 @@
 "use client";
 import { useState } from "react";
 import PortCard from "@/components/PortCard";
+import RotateCard from "@/components/RotateCard";
 import PegChip from "@/components/PegChip";
 import type { Basket } from "@/lib/baskets";
 import type { PegHealth } from "@/lib/peg";
 
-export type StockInfo = { symbol: string; name: string; icon?: string; nav?: number };
+export type StockInfo = { symbol: string; name: string; icon?: string; nav?: number; address?: string; decimals?: number };
 
 const LEG_COLORS = ["#0000FF", "#3C8AFF", "#FEA8CD", "#FFD12F", "#B6F569", "#66C800", "#FC401F"];
 const usd = (n: number) => "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -40,6 +41,7 @@ export default function BasketDesk({
   geoBlocked: boolean;
 }) {
   const [id, setId] = useState(initialId);
+  const [mode, setMode] = useState<"buy" | "rotate">("buy");
   const basket = baskets.find((b) => b.id === id) ?? baskets[0];
   const pick = (next: string) => {
     setId(next);
@@ -124,7 +126,37 @@ export default function BasketDesk({
           </div>
         </div>
 
-        <PortCard key={basket.id} geoBlocked={geoBlocked} basket={{ id: basket.id, name: basket.name }} />
+        <div style={{ display: "grid", gap: 12 }}>
+          <div role="tablist" aria-label="Buy or rotate" style={{ display: "flex", gap: 4, padding: 4, borderRadius: 999, background: "var(--raised)" }}>
+            {(["buy", "rotate"] as const).map((m) => (
+              <button
+                key={m}
+                role="tab"
+                aria-selected={mode === m}
+                onClick={() => setMode(m)}
+                style={{
+                  flex: 1,
+                  height: 40,
+                  borderRadius: 999,
+                  border: 0,
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  fontSize: 15,
+                  background: mode === m ? "#fff" : "transparent",
+                  color: mode === m ? "var(--ink)" : "var(--g60)",
+                  boxShadow: mode === m ? "0 1px 2px rgba(10,11,13,.08)" : "none",
+                }}
+              >
+                {m === "buy" ? "Buy with USDC" : "Rotate"}
+              </button>
+            ))}
+          </div>
+          {mode === "buy" ? (
+            <PortCard key={basket.id} geoBlocked={geoBlocked} basket={{ id: basket.id, name: basket.name }} />
+          ) : (
+            <RotateCard key={basket.id} baskets={baskets} to={basket} stocks={stocks} geoBlocked={geoBlocked} />
+          )}
+        </div>
       </div>
     </div>
   );

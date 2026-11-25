@@ -54,7 +54,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   const stocks: Record<string, StockInfo> = {};
   for (const sym of UNIVERSE) {
     const t = bySymbol.get(sym);
-    if (t) stocks[sym] = { symbol: sym, name: t.name, icon: t.icon_url, nav: t.nav_price };
+    if (t) stocks[sym] = { symbol: sym, name: t.name, icon: t.icon_url, nav: t.nav_price, address: t.contract_address, decimals: t.decimals };
   }
   const pegBy = Object.fromEntries(peg.map((p) => [p.symbol, p]));
   const legs = UNIVERSE.map((sym) => ({ symbol: sym, token: bySymbol.get(sym) }));
