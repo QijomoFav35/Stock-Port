@@ -229,7 +229,7 @@ export default async function Home() {
                       <span className="num">{l.token?.nav_price ? `$${l.token.nav_price.toFixed(2)}` : "—"}</span>
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--g60)", gap: 8 }}>
-                      <span>{Math.round(l.weightBps / 100)}% of basket · NAV</span>
+                      <span>{Math.round(l.weightBps / 100)}% of basket</span>
                       <PegChip peg={l.peg} compact />
                     </div>
                   </div>
