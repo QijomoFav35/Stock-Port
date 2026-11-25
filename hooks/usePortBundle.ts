@@ -8,7 +8,8 @@
  *
  * Path A (EIP-5792): wallet reports atomic batching → one `wallet_sendCalls` confirmation.
  *   Builder Code goes in the `dataSuffix` capability when the wallet declares it, otherwise
- *   it is appended to every call's calldata so attribution is never dropped.
+ *   it is appended to every call's calldata so attribution is never dropped. With NEXT_PUBLIC_GASLESS=1
+ *   a paymaster capability is added too, so smart wallets can get gas sponsored (lib/paymaster.ts).
  * Path B (EOA fallback): sequential sendTransaction, each with the suffix appended, waiting
  *   for each receipt before the next (swaps need the approve mined).
  */
@@ -22,6 +23,8 @@ import { publicClient } from "@/lib/publicClient";
 import { getBaseCapabilities, shortError } from "@/lib/walletCaps";
 import { checkApproval, checkSwapCall, contractName } from "@/lib/txGuard";
 import { USDC_DECIMALS } from "@/lib/constants";
+import { sendCallsCapabilities } from "@/lib/paymaster";
+import type { PegHealth } from "@/lib/peg";
 
 export type PortStatus = "idle" | "quoting" | "review" | "signing" | "confirming" | "pending" | "success" | "error";
 export type PortResult = { mode: "batch" | "sequential"; txHashes: Hash[]; quote: PortQuote };
@@ -42,7 +45,7 @@ export type PortPlan = {
   totalUsdc: string;
   /** Present only when the current allowance is short. Always the exact amount, never unlimited. */
   approval?: { spender: Address; spenderName: string; usdc: string };
-  buys: { symbol: string; token: Address; usdc: string; minOut?: string }[];
+  buys: { symbol: string; token: Address; usdc: string; minOut?: string; peg?: PegHealth }[];
   contracts: { address: Address; name: string }[];
   steps: number;
 };
@@ -138,6 +141,7 @@ export function usePortBundle(walletClient: WalletClient | undefined, account: A
               token: l.token,
               usdc: usd(l.sellAmount),
               minOut: l.minBuyAmount ? formatUnits(BigInt(l.minBuyAmount), l.decimals) : undefined,
+              peg: quote.peg?.find((p) => p.symbol === l.symbol),
             })),
             contracts: targets.map((a) => ({ address: a, name: contractName(a) ?? "o1 Exchange order contract" })),
             steps: quote.calls.length + (needsApproval ? 1 : 0),
@@ -216,7 +220,7 @@ export function usePortBundle(walletClient: WalletClient | undefined, account: A
               value: BigInt(c.value),
               data: caps.dataSuffix ? c.data : withBuilderCode(c.data),
             })),
-            capabilities: caps.dataSuffix ? { dataSuffix: { value: suffix, optional: false } } : undefined,
+            capabilities: sendCallsCapabilities(caps, suffix),
           });
           setStatus("pending");
           setStep("Waiting for Base confirmation");

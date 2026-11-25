@@ -17,6 +17,7 @@ import { MIN_DUST_PORT_USDC, USDC_BASE, USDC_DECIMALS } from "@/lib/constants";
 import { publicClient } from "@/lib/publicClient";
 import { checkApproval, checkSwapCall } from "@/lib/txGuard";
 import { getBaseCapabilities, isUserRejection, shortError } from "@/lib/walletCaps";
+import { sendCallsCapabilities } from "@/lib/paymaster";
 import type { DustScan, DustToken } from "@/app/api/swap/dust/scan/route";
 import type { DustQuote } from "@/app/api/swap/dust/quote/route";
 import type { PortOpts, PortResult } from "@/hooks/usePortBundle";
@@ -160,7 +161,7 @@ export function useDustSweep(
             calls: perToken.flatMap((p) =>
               p.calls.map((c) => ({ to: c.to, value: BigInt(c.value), data: caps.dataSuffix ? c.data : withBuilderCode(c.data) })),
             ),
-            capabilities: caps.dataSuffix ? { dataSuffix: { value: suffix, optional: false } } : undefined,
+            capabilities: sendCallsCapabilities(caps, suffix),
           });
           setStep("Waiting for Base confirmation");
           const st = await walletClient.waitForCallsStatus({ id, timeout: 120_000 });

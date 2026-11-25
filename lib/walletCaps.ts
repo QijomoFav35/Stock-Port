@@ -1,7 +1,7 @@
 import type { Address, WalletClient } from "viem";
 import { base } from "viem/chains";
 
-/** EIP-5792 capabilities we care about on Base. Wallets without EIP-5792 report neither. */
+/** EIP-5792 capabilities we care about on Base. Wallets without EIP-5792 report none. */
 export async function getBaseCapabilities(wc: WalletClient, account: Address) {
   try {
     const caps = (await wc.getCapabilities({ account, chainId: base.id })) as Record<
@@ -10,9 +10,10 @@ export async function getBaseCapabilities(wc: WalletClient, account: Address) {
     >;
     const atomic = ["supported", "ready"].includes(caps?.atomic?.status ?? "");
     const dataSuffix = caps?.dataSuffix?.supported === true;
-    return { atomic, dataSuffix };
+    const paymaster = caps?.paymasterService?.supported === true;
+    return { atomic, dataSuffix, paymaster };
   } catch {
-    return { atomic: false, dataSuffix: false }; // wallet has no EIP-5792 support
+    return { atomic: false, dataSuffix: false, paymaster: false }; // wallet has no EIP-5792 support
   }
 }
 

@@ -2,6 +2,7 @@
 import type { PortPlan } from "@/hooks/usePortBundle";
 import { basescanAddress } from "@/lib/txGuard";
 import Icon from "@/components/Icon";
+import PegChip from "@/components/PegChip";
 
 const fmtUsd = (s: string) => `$${Number(s).toFixed(2)}`;
 const fmtQty = (s: string) => Number(s).toLocaleString(undefined, { maximumSignificantDigits: 4 });
@@ -72,7 +73,9 @@ export default function ReviewPanel({ plan, onConfirm, onCancel }: { plan: PortP
             <Dot n={++n} />
             <div style={{ flex: 1, display: "flex", justifyContent: "space-between", gap: 16 }}>
               <div>
-                <div>Buy {b.symbol}</div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  Buy {b.symbol} <PegChip peg={b.peg} compact />
+                </div>
                 {b.minOut && (
                   <div style={{ fontSize: 13, color: "var(--g60)" }}>
                     Min out {fmtQty(b.minOut)} {b.symbol}, or the tx reverts

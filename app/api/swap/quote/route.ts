@@ -8,6 +8,8 @@
  * route. SWAP_PROVIDER picks a different first choice. A client can force one provider with
  * `provider` (e.g. smart wallets can't sign o1's Permit2 legs); a forced provider gets no fallback.
  * The Builder Code suffix is added client-side at send time (lib/attribution.ts).
+ * Peg guard: if any leg's pool is more than NAV_DRIFT_MAX_PCT off its Chainlink reference, the buy is
+ * refused with 409 peg_drift (lib/pegHealth.ts). Every quote carries `peg` so the review sheet can show it.
  * Geo: middleware.ts returns 451 for blocked countries. We re-check here (defense in depth).
  */
 import { NextResponse, type NextRequest } from "next/server";
@@ -19,6 +21,8 @@ import { resolveSymbols, type TokenizedStock } from "@/lib/tokenizedStocks";
 import { getZeroExQuote } from "@/lib/zeroEx";
 import { createO1BuyOrder, type Eip712 } from "@/lib/o1";
 import { AERODROME_ROUTER, buildAerodromeBuys } from "@/lib/aerodrome";
+import { getPegHealth } from "@/lib/pegHealth";
+import { NAV_DRIFT_MAX_PCT, driftBlocked, type PegHealth } from "@/lib/peg";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +53,8 @@ export type PortQuote = {
   legs: { symbol: string; token: Address; sellAmount: string; buyAmount?: string; minBuyAmount?: string; decimals: number; orderId?: string }[];
   totalUsdc: string;
   expiresAt: number;
+  /** Pool vs NAV per basket leg, same order as `legs`. */
+  peg: PegHealth[];
 };
 
 class RouteError extends Error {
@@ -77,6 +83,23 @@ export async function POST(req: NextRequest) {
     const basket = parseBasket();
     const tokens = await resolveSymbols(basket.map((b) => b.symbol));
     const total = parseUnits(usdcAmount, USDC_DECIMALS);
+
+    // NAV drift guard: don't buy into a pool that has slipped off its reference price.
+    const peg = await getPegHealth(tokens);
+    const off = driftBlocked(peg);
+    if (off.length) {
+      const detail = off.map((p) => `${p.symbol} ${p.spreadPct!.toFixed(1)}%`).join(", ");
+      return NextResponse.json(
+        {
+          error: "peg_drift",
+          symbols: off.map((p) => p.symbol),
+          maxPct: NAV_DRIFT_MAX_PCT,
+          peg,
+          message: `Paused: pool price is more than ${NAV_DRIFT_MAX_PCT}% off NAV (${detail}). Try again once it's back in range.`,
+        },
+        { status: 409 },
+      );
+    }
 
     // Split by weight; the last leg takes the rounding remainder so legs sum exactly to total.
     let allocated = 0n;
@@ -110,7 +133,7 @@ export async function POST(req: NextRequest) {
       }
     }
     if (!quote) throw firstError ?? new Error("No swap route available");
-    return NextResponse.json({ ...quote, totalUsdc: total.toString(), expiresAt: Date.now() + 30_000 } satisfies PortQuote);
+    return NextResponse.json({ ...quote, totalUsdc: total.toString(), expiresAt: Date.now() + 30_000, peg } satisfies PortQuote);
   } catch (e) {
     if (e instanceof RouteError) return NextResponse.json(e.body, { status: e.status });
     return NextResponse.json({ error: "quote_failed", message: (e as Error).message }, { status: 502 });

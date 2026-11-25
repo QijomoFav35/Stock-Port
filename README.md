@@ -30,6 +30,27 @@ Create a normal Render **Web Service** from this repo: runtime Node, build comma
 | `app/dust`, `components/DustCard.tsx`, `hooks/useDustSweep.ts`, `app/api/swap/dust/*`, `lib/alchemy.ts` | **Dust to Stocks.** Scans the wallet with Alchemy (balances + prices, unpriced tokens hidden), quotes each token → USDC on 0x, skips tokens over 10% price impact or $0.10 gas (Rabby's guards), sweeps in one EIP-5792 batch or token by token, then ports the USDC that arrived into the basket (min $1). Needs `ALCHEMY_API_KEY` and `ZEROX_API_KEY`. |
 | `components/PortCard.tsx`, `app/page.tsx` | Basket with NAV ref price, amount, non-US checkbox, Basescan links. |
 
+## Agent guardrails
+
+What the code enforces today, and what ships with the Agent. The home page shows the same list.
+
+| Rule | Status | Where |
+| --- | --- | --- |
+| **Self-custody.** Tokens go straight to the buyer's wallet; no contract or server holds funds. | Live | `lib/txGuard.ts` checks every Aerodrome buy pays out to the connected wallet. |
+| **Exact approvals.** USDC is approved for the exact amount spent, never unlimited. o1's own unlimited approve is dropped. | Live | `lib/txGuard.ts`, `app/api/swap/quote/route.ts` |
+| **NAV drift guard (2%).** Each quote compares the live Aerodrome pool price (`slot0`) with the stock's Chainlink feed. If any leg is more than `NEXT_PUBLIC_NAV_DRIFT_MAX_PCT` off, the quote returns `409 peg_drift` and the buy is paused. Every quote carries `peg` so the review sheet shows "+0.3% vs NAV · Healthy" per stock. A NAV older than 72h shows "NAV stale" and doesn't block (Aerodrome min out still uses the feed). | Live | `lib/pegHealth.ts`, `lib/peg.ts`, `components/PegChip.tsx` |
+| **Verified contracts only.** Calls are checked against an allowlist before the wallet opens. | Live | `lib/txGuard.ts` |
+| **Rebalance cap (25%/day).** The Agent moves at most 25% of the basket per day, and skips any leg the drift guard pauses. | Soon (Agent) | `/api/cron/rebalance`, not built yet |
+| **Split and dividend aware.** Holdings read with B20 `scaledBalanceOf`, never raw `balanceOf`. | Soon (holdings view) | `readShares()` in `lib/tokenizedStocks.ts` |
+
+## Optional: gasless buys for smart wallets
+
+Set `NEXT_PUBLIC_GASLESS=1` and `CDP_PAYMASTER_URL` (from the CDP dashboard, Base mainnet) in `.env.local`. Wallets that report `paymasterService` (Base Account) then get an ERC-7677 paymaster capability next to the Builder Code `dataSuffix`. The wallet calls `/api/paymaster`, which forwards only `pm_getPaymasterStubData` / `pm_getPaymasterData` on Base to CDP, so the key stays on the server. In the CDP dashboard, allowlist only the contracts we call (USDC, the Aerodrome router, 0x AllowanceHolder, o1's AllowanceHolder) and set a per-user spend limit: you pay the gas. EOA wallets (MetaMask, Rabby) pay gas as usual.
+
+## Stock radar
+
+The home page lists every tokenized stock from `GET api.coinbase.com/v1/tokenized-stocks` with its NAV, basket legs first with their peg chip. Peg health is read only for basket legs, since each one costs a few RPC calls.
+
 ## Corrections vs. the original brief (from official docs, 2026-11-22)
 
 - **Tickers use a `c` suffix** (`TSLAc`, `AMDc`, `GOOGLc`), not `x`. `NVDAx` style is a different issuer. Default basket is `NVDAc / GOOGLc / METAc`: NVDAc carried ~57% of early DEX volume, and BaseStonk's docs list exactly these plus AAPLc as the tickers with live USDC pools. TSLAc is reported as deep in one source but "no on-chain market" in another, so it's left out.

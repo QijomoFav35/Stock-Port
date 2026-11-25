@@ -1,7 +1,12 @@
 import { headers } from "next/headers";
 import { GEO_HEADER, isTradingBlocked } from "@/lib/geo";
 import { parseBasket } from "@/lib/constants";
-import { isNavStale, resolveSymbols, type TokenizedStock } from "@/lib/tokenizedStocks";
+import { listTokenizedStocks, resolveSymbols, type TokenizedStock } from "@/lib/tokenizedStocks";
+import { getPegHealth } from "@/lib/pegHealth";
+import type { PegHealth } from "@/lib/peg";
+import PegChip from "@/components/PegChip";
+import Guardrails from "@/components/Guardrails";
+import StockRadar from "@/components/StockRadar";
 import PortCard from "@/components/PortCard";
 import Icon from "@/components/Icon";
 import type { IconName } from "@/lib/icons";
@@ -38,13 +43,21 @@ export default async function Home() {
   const geoBlocked = isTradingBlocked((await headers()).get(GEO_HEADER));
   const basket = parseBasket();
   let tokens: TokenizedStock[] = [];
+  let all: TokenizedStock[] = [];
+  let peg: PegHealth[] = [];
   let basketError: string | undefined;
   try {
     tokens = await resolveSymbols(basket.map((b) => b.symbol));
+    [all, peg] = await Promise.all([listTokenizedStocks(), getPegHealth(tokens)]);
   } catch (e) {
     basketError = (e as Error).message;
   }
-  const legs = basket.map((b, i) => ({ ...b, token: tokens[i], color: LEG_COLORS[i % LEG_COLORS.length] }));
+  const legs = basket.map((b, i) => ({
+    ...b,
+    token: tokens[i],
+    peg: peg.find((p) => p.symbol === tokens[i]?.symbol),
+    color: LEG_COLORS[i % LEG_COLORS.length],
+  }));
   const targets = legs.map((l) => `${l.symbol} ${Math.round(l.weightBps / 100)}`).join(" · ");
 
   const tickerItems = legs.map((l) => (
@@ -216,8 +229,8 @@ export default async function Home() {
                       <span className="num">{l.token?.nav_price ? `$${l.token.nav_price.toFixed(2)}` : "—"}</span>
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--g60)", gap: 8 }}>
-                      <span>{Math.round(l.weightBps / 100)}% of basket</span>
-                      <span>{l.token?.nav_price ? (isNavStale(l.token) ? "ref price · stale" : "ref price") : "no ref price"}</span>
+                      <span>{Math.round(l.weightBps / 100)}% of basket · NAV</span>
+                      <PegChip peg={l.peg} compact />
                     </div>
                   </div>
                 </div>
@@ -254,6 +267,8 @@ export default async function Home() {
         >
           <PortCard geoBlocked={geoBlocked} />
 
+          <div style={{ display: "grid", gap: 24 }}>
+          <Guardrails />
           <div className="card pad" style={{ padding: 36 }}>
             <div className="eyebrow">How the basket works</div>
             <div className="disp" style={{ fontSize: 28, lineHeight: 1.2, marginTop: 14, display: "flex", alignItems: "center", gap: 12 }}>
@@ -298,8 +313,15 @@ export default async function Home() {
               Every tx carries the Stock Port Builder Code, so anyone can verify it.
             </p>
           </div>
+          </div>
         </div>
       </section>
+
+      {all.length > 0 && (
+        <section className="wrap" style={{ paddingTop: 40, paddingBottom: 16 }}>
+          <StockRadar all={all} basket={basket.map((b) => b.symbol)} peg={peg} />
+        </section>
+      )}
 
       <section className="wrap" style={{ paddingTop: 72, paddingBottom: 48, textAlign: "center" }}>
         <h2 className="disp" style={{ fontSize: "clamp(36px,5vw,54px)", lineHeight: 1.05, margin: 0 }}>
