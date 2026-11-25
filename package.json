@@ -9,7 +9,9 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "check-routes": "node --env-file-if-exists=.env.local scripts/check-routes.mjs",
-    "check-universe": "node --env-file-if-exists=.env.local scripts/check-universe.mjs"
+    "check-universe": "node --env-file-if-exists=.env.local scripts/check-universe.mjs",
+    "guard:build": "npx -y solc@0.8.24 --optimize --bin --abi -o build contracts/LoanGuard.sol",
+    "guard:sim": "node scripts/simulate-guard.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.0",
