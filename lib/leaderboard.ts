@@ -97,15 +97,15 @@ const TTL = 15 * 60_000;
 async function compute(): Promise<Leaderboard> {
   const all = await listTokenizedStocks();
   const nowS = Math.floor(Date.now() / 1000);
-  const feeds = (
-    await Promise.all(
-      UNIVERSE.map(async (sym) => {
+  type FeedRow = { sym: string; feed: Address };
+  const found = await Promise.all(
+      UNIVERSE.map(async (sym: string): Promise<FeedRow | undefined> => {
         const t = all.find((x) => x.symbol === sym);
         const feed = t ? await feedFor(sym, getAddress(t.contract_address)) : undefined;
         return feed ? { sym, feed } : undefined;
       }),
-    )
-  ).filter((x): x is { sym: string; feed: Address } => !!x);
+  );
+  const feeds = found.filter((x): x is FeedRow => !!x);
 
   const latest = await publicClient.multicall({
     contracts: feeds.map((f) => ({ address: f.feed, abi: roundAbi, functionName: "latestRoundData" as const })),
