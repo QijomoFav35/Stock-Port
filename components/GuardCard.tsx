@@ -4,18 +4,40 @@ import { useAccount, useWalletClient } from "wagmi";
 import { formatUnits, parseUnits } from "viem";
 import ConnectButton from "@/components/ConnectButton";
 import { useLoanGuard } from "@/hooks/useLoanGuard";
-import { LOAN_GUARD } from "@/lib/loanGuard";
+import { GUARD_PREVIEW, LOAN_GUARD } from "@/lib/loanGuard";
+import type { GuardState } from "@/hooks/useLoanGuard";
 import { basescanAddress } from "@/lib/txGuard";
 import GuardLog from "@/components/GuardLog";
 
 const usd = (raw: bigint) => "$" + Number(formatUnits(raw, 6)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const num = (v: string) => (Number.isFinite(Number(v)) ? Number(v) : NaN);
 
+const SAMPLE: GuardState = {
+  reserve: 250_000_000n,
+  trigger: 1.15,
+  target: 1.4,
+  weekendTrigger: 1.3,
+  lastProtect: Math.floor(Date.now() / 1000) - 3 * 86400,
+  giverApproved: true,
+  needed: false,
+};
+
 /** Gate B1: Loan Guard. A USDC reserve that repays your Aave loan before liquidation. */
 export default function GuardCard() {
   const { address } = useAccount();
   const { data: walletClient } = useWalletClient();
-  const g = useLoanGuard(walletClient, address);
+  const live = useLoanGuard(walletClient, address);
+  const [previewNote, setPreviewNote] = useState(false);
+  const g = GUARD_PREVIEW
+    ? {
+        ...live,
+        deployed: true,
+        builderCodeConfigured: true,
+        state: SAMPLE,
+        arm: () => setPreviewNote(true),
+        withdrawReserve: () => setPreviewNote(true),
+      }
+    : live;
   const [trigger, setTrigger] = useState("1.15");
   const [target, setTarget] = useState("1.40");
   const [weekend, setWeekend] = useState("1.30");
@@ -56,7 +78,7 @@ export default function GuardCard() {
 
       {!g.deployed ? (
         <p style={{ marginTop: 16, fontSize: 14, color: "var(--g60)" }}>Launching soon. The contract is being deployed on Base.</p>
-      ) : !address ? (
+      ) : !address && !GUARD_PREVIEW ? (
         <div style={{ marginTop: 16 }}>
           <ConnectButton full />
         </div>
@@ -131,6 +153,7 @@ export default function GuardCard() {
               ))}
             </div>
           )}
+          {previewNote && <p style={{ fontSize: 14, color: "var(--g60)", marginTop: 12 }}>Preview mode: nothing was sent. This button opens your wallet once the contract is live.</p>}
           {g.error && <p style={{ fontSize: 14, color: "var(--red)", marginTop: 12 }}>{g.error}</p>}
           {LOAN_GUARD && (
             <p style={{ fontSize: 12, color: "var(--g60)", marginTop: 14 }}>

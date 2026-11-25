@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { formatUnits } from "viem";
+import { GUARD_PREVIEW } from "@/lib/loanGuard";
 
 type Entry = { at: number; user: string; health: number; trigger: number; amount: string; tx?: string; error?: string };
 type Run = { at: number; checked: number; atRisk: number; protected: number; entries: Entry[] };
@@ -12,11 +13,35 @@ const ago = (ms: number) => {
   return s < 60 ? `${s}s ago` : s < 3600 ? `${Math.round(s / 60)}m ago` : `${Math.round(s / 3600)}h ago`;
 };
 
+function sample(): Stats {
+  const now = Date.now();
+  const e = (min: number, user: string, health: number, amount: number, ok = true): Entry => ({
+    at: now - min * 60_000,
+    user,
+    health,
+    trigger: 1.15,
+    amount: String(amount * 1e6),
+    ...(ok ? { tx: "0x" + "0".repeat(64) } : { error: "reserve empty" }),
+  });
+  return {
+    deployed: true,
+    guarded: 12,
+    protectCount: 3,
+    totalRepaid: String(1840 * 1e6),
+    log: [
+      { at: now - 2 * 60_000, checked: 12, atRisk: 0, protected: 0, entries: [] },
+      { at: now - 95 * 60_000, checked: 12, atRisk: 2, protected: 1, entries: [e(95, "0x9e37…E647", 1.12, 620), e(95, "0x41c2…09aa", 1.09, 0, false)] },
+      { at: now - 3 * 1440 * 60_000, checked: 9, atRisk: 1, protected: 1, entries: [e(3 * 1440, "0x7a10…3b2c", 1.14, 1220)] },
+    ],
+  };
+}
+
 /** Public Agent log for Loan Guard: onchain totals plus the keeper's latest passes. */
 export default function GuardLog() {
   const [stats, setStats] = useState<Stats>();
 
   useEffect(() => {
+    if (GUARD_PREVIEW) return setStats(sample());
     let live = true;
     const load = () =>
       fetch("/api/guard/stats")
@@ -37,7 +62,7 @@ export default function GuardLog() {
 
   return (
     <div style={{ marginTop: 20 }}>
-      <div className="eyebrow">Agent log</div>
+      <div className="eyebrow">Agent log{GUARD_PREVIEW ? " · sample data" : ""}</div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 10 }}>
         {[
           ["Loans guarded", String(stats.guarded ?? 0)],

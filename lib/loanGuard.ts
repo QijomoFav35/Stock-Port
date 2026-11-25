@@ -6,6 +6,8 @@ import { getAddress, isAddress, type Address } from "viem";
 
 const raw = process.env.NEXT_PUBLIC_LOAN_GUARD_ADDRESS ?? "";
 export const LOAN_GUARD: Address | undefined = isAddress(raw) ? getAddress(raw) : undefined;
+/** Local preview: NEXT_PUBLIC_GUARD_PREVIEW=1 shows the guard UI with sample data and sends nothing. Never set it on Render. */
+export const GUARD_PREVIEW = process.env.NEXT_PUBLIC_GUARD_PREVIEW === "1" && !LOAN_GUARD;
 export const GIVER = getAddress("0x9E81c2fDE4E34CAB3AB1667ca3c932dBAED95F08");
 /** Block the guard was deployed in, so the keeper and Agent log only scan from there. */
 export const LOAN_GUARD_FROM_BLOCK = BigInt(process.env.NEXT_PUBLIC_LOAN_GUARD_FROM_BLOCK || "0");
