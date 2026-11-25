@@ -42,7 +42,7 @@ export default function BasketDesk({
 }) {
   const [id, setId] = useState(initialId);
   const [mode, setMode] = useState<"buy" | "rotate">("buy");
-  // The Rotate route on the home board links here with ?mode=rotate.
+  // The Rotate route links to /baskets?mode=rotate.
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("mode") === "rotate") setMode("rotate");
   }, []);

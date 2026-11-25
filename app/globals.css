@@ -755,3 +755,17 @@ input[type="checkbox"] {
     display: none;
   }
 }
+
+/* Feature pages (/borrow, /baskets, /sweep, /race) */
+.sec-page {
+  padding-top: 64px;
+}
+.gate-head-page .gate-title {
+  font-size: clamp(38px, 5.6vw, 64px);
+  line-height: 1.03;
+}
+@media (max-width: 720px) {
+  .sec-page {
+    padding-top: 40px;
+  }
+}

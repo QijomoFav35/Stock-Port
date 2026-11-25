@@ -54,7 +54,7 @@ export default async function SharePage({ searchParams }: Props) {
       ) : (
         <p style={{ fontSize: 14, color: "var(--g60)", marginTop: 16 }}>We couldn&apos;t read this tx from Base.</p>
       )}
-      <Link href="/#buy" className="btn btn-blue" style={{ width: "100%", marginTop: 20 }}>
+      <Link href="/baskets" className="btn btn-blue" style={{ width: "100%", marginTop: 20 }}>
         Pick a basket from $5
       </Link>
     </main>

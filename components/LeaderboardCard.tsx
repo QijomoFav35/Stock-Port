@@ -45,7 +45,7 @@ export default function LeaderboardCard() {
           {lb.baskets.map((b, i) => (
             <a
               key={b.id}
-              href={`/?basket=${b.id}#buy`}
+              href={`/baskets?basket=${b.id}`}
               className="rule"
               style={{ textDecoration: "none", color: "var(--ink)", alignItems: "center" }}
             >
