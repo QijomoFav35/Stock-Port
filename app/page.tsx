@@ -301,7 +301,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             <span style={{ flex: 1 }}>
               <span style={{ display: "block", fontWeight: 700, fontSize: 18, color: "var(--ink)" }}>Open Dust Sweep</span>
               <span style={{ display: "block", fontSize: 14, color: "var(--g60)", marginTop: 2 }}>
-                Scans your wallet, hides spam and skips anything that isn't worth the Gas.
+                Scans your wallet, hides spam and skips anything that isn&apos;t worth the Gas.
               </span>
             </span>
             <span className="btn btn-blue btn-sm">Sweep</span>

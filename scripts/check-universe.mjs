@@ -84,7 +84,7 @@ async function o1Ok(token) {
     });
     const body = await res.json().catch(() => ({}));
     return res.ok && body?.success !== false && body?.transactions?.length ? "yes" : "no (" + res.status + ")";
-  } catch (e) {
+  } catch {
     return "error";
   }
 }

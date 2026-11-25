@@ -34,12 +34,6 @@ const FEEDS = {
   AMZNc: "0x06A8E4b3aBB3B7543d8396FB2B763d22820cB295",
 };
 const SPACINGS = [1, 10, 50, 100, 200, 2000];
-const poolAbi = parseAbi([
-  "function tickSpacing() view returns (int24)",
-  "function factory() view returns (address)",
-  "function token0() view returns (address)",
-  "function token1() view returns (address)",
-]);
 const erc20 = parseAbi(["function balanceOf(address) view returns (uint256)"]);
 const feedAbi = parseAbi(["function latestRoundData() view returns (uint80,int256,uint256,uint256,uint80)"]);
 const factoryAbi = parseAbi([
