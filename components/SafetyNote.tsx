@@ -1,47 +1,50 @@
 import { KNOWN_CONTRACTS, basescanAddress } from "@/lib/txGuard";
+import Icon from "@/components/Icon";
 
 const REPO = "https://github.com/QijomoFav35/Stock-Port";
 
-/** Short, plain answer to "can this app drain my wallet?" Shown on the Port and Dust cards. */
+/** Short answer to "can this app drain my wallet?" Shown on the buy and sweep cards. */
 export default function SafetyNote() {
   return (
-    <details className="rounded-xl bg-neutral-50 dark:bg-neutral-900 px-3 py-2 text-sm">
-      <summary className="cursor-pointer font-medium">Why this is safe</summary>
-      <ul className="mt-2 list-disc space-y-1 pl-5 text-neutral-600 dark:text-neutral-400">
-        <li>Stock Port never holds your money. Stocks land straight in your own wallet.</li>
+    <details style={{ marginTop: 16, fontSize: 13, color: "var(--g60)" }}>
+      <summary style={{ cursor: "pointer", display: "flex", gap: 6, alignItems: "center", justifyContent: "center", listStyle: "none" }}>
+        <span style={{ color: "var(--green)" }}>
+          <Icon name="ph-shield-check" size={16} />
+        </span>
+        Exact approval, no infinite approvals · <span style={{ color: "var(--blue)" }}>why it&apos;s safe</span>
+      </summary>
+      <ul style={{ marginTop: 12, paddingLeft: 20, display: "grid", gap: 6, textAlign: "left" }}>
+        <li>Non-custodial. Stock Port never holds your funds; tokens land in your own wallet.</li>
+        <li>Exact approvals only, never infinite. A $20 buy can move $20 of USDC and nothing more.</li>
         <li>
-          You only ever approve the exact amount you are spending, never unlimited. A $20 port can move $20 of USDC and
-          nothing more.
-        </li>
-        <li>
-          Buys are routed by{" "}
-          <a className="underline" href="https://o1.exchange" target="_blank" rel="noreferrer">
+          Routed by{" "}
+          <a href="https://o1.exchange" target="_blank" rel="noreferrer">
             o1 Exchange
           </a>{" "}
-          through the{" "}
-          <a className="underline" href={basescanAddress(KNOWN_CONTRACTS.zeroExAllowanceHolder.address)} target="_blank" rel="noreferrer">
+          via the{" "}
+          <a href={basescanAddress(KNOWN_CONTRACTS.zeroExAllowanceHolder.address)} target="_blank" rel="noreferrer">
             AllowanceHolder contract
           </a>
-          , or directly through the official{" "}
-          <a className="underline" href={basescanAddress(KNOWN_CONTRACTS.aerodromeRouter.address)} target="_blank" rel="noreferrer">
+          , or the official{" "}
+          <a href={basescanAddress(KNOWN_CONTRACTS.aerodromeRouter.address)} target="_blank" rel="noreferrer">
             Aerodrome router
           </a>
-          . The app refuses to send anything to any other contract.
+          . The app refuses to send to any other contract.
         </li>
-        <li>You see every step in plain English before your wallet opens, and nothing happens until you confirm.</li>
+        <li>You review every step before your wallet opens. Nothing moves until you sign.</li>
         <li>
-          You can check or remove any approval anytime at{" "}
-          <a className="underline" href="https://revoke.cash" target="_blank" rel="noreferrer">
+          Check or revoke approvals anytime at{" "}
+          <a href="https://revoke.cash" target="_blank" rel="noreferrer">
             revoke.cash
           </a>
           .
         </li>
         <li>
-          The code is{" "}
-          <a className="underline" href={REPO} target="_blank" rel="noreferrer">
-            open source
+          Open source:{" "}
+          <a href={REPO} target="_blank" rel="noreferrer">
+            read the code
           </a>
-          .
+          . Don&apos;t trust, verify.
         </li>
       </ul>
     </details>

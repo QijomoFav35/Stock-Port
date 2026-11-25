@@ -5,25 +5,29 @@ import DustCard from "@/components/DustCard";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Dust to Stocks · Stock Port",
-  description: "Turn the small leftover tokens in your wallet into tokenized stocks on Base.",
+  title: "Dust Sweep · Stock Port",
+  description: "Sweep the dust in your wallet into tokenized stocks on Base. Exact approvals, self-custody.",
 };
 
 export default async function DustPage() {
   const geoBlocked = isTradingBlocked((await headers()).get(GEO_HEADER));
   return (
-    <main className="mx-auto max-w-xl px-4 py-10 space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-3xl font-bold">Dust to Stocks</h1>
-        <p className="text-sm text-neutral-500">
-          Those leftover tokens worth a few cents or dollars? Sweep them into NVIDIA, Google and Meta in a few taps.
+    <main className="glowbg">
+      <header className="wrap" style={{ textAlign: "center", paddingTop: 72, paddingBottom: 40 }}>
+        <span className="tag r1" style={{ background: "var(--yellow)", color: "var(--ink)" }}>
+          Dust sweep
+        </span>
+        <h1 className="disp r2" style={{ fontSize: "clamp(40px,6.4vw,76px)", lineHeight: 1.02, margin: "20px 0 0" }}>
+          Sweep your dust <em>into stocks.</em>
+        </h1>
+        <p className="muted r3" style={{ maxWidth: 600, margin: "20px auto 0", fontSize: 18 }}>
+          Swap the dust in your wallet to USDC, then buy the Agent&apos;s tokenized stock basket. Every tx is shown before
+          you sign.
         </p>
       </header>
-      <DustCard geoBlocked={geoBlocked} />
-      <p className="text-xs text-neutral-500">
-        Tokenized stocks track the share price but give no shareholder or voting rights. Not available to US persons.
-        Not investment advice.
-      </p>
+      <section className="wrap" style={{ paddingBottom: 48 }}>
+        <DustCard geoBlocked={geoBlocked} />
+      </section>
     </main>
   );
 }

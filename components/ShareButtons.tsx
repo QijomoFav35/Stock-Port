@@ -1,28 +1,33 @@
 "use client";
+import { useState } from "react";
 import type { Hash } from "viem";
+import Icon from "@/components/Icon";
 import { shareOnXUrl, shareUrl } from "@/lib/shareLinks";
 
 export default function ShareButtons({ hashes, spent, dust = false }: { hashes: Hash[]; spent: number; dust?: boolean }) {
+  const [copied, setCopied] = useState(false);
   if (!hashes.length) return null;
   const origin = typeof window === "undefined" ? "" : window.location.origin;
+  const link = shareUrl(origin, hashes, dust);
   return (
-    <div className="flex gap-2 pt-2">
-      <a
-        href={shareOnXUrl(origin, hashes, spent, dust)}
-        target="_blank"
-        rel="noreferrer"
-        className="flex-1 rounded-xl bg-black py-2 text-center font-semibold text-white dark:bg-white dark:text-black"
-      >
+    <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
+      <a href={shareOnXUrl(origin, hashes, spent, dust)} target="_blank" rel="noreferrer" className="btn btn-ink" style={{ flex: 1, height: 48, fontSize: 15, padding: "0 12px", minWidth: 0 }}>
+        <Icon name="ph-x-logo" size={18} />
         Share on X
       </a>
-      <a
-        href={shareUrl(origin, hashes, dust)}
-        target="_blank"
-        rel="noreferrer"
-        className="flex-1 rounded-xl border border-neutral-300 py-2 text-center font-semibold dark:border-neutral-700"
+      <button
+        onClick={() => {
+          navigator.clipboard?.writeText(link).then(
+            () => setCopied(true),
+            () => window.open(link, "_blank", "noreferrer"),
+          );
+        }}
+        className="btn btn-ghost"
+        style={{ flex: 1, height: 48, fontSize: 15, padding: "0 12px", minWidth: 0 }}
       >
-        View card
-      </a>
+        <Icon name={copied ? "ph-check" : "ph-copy"} size={18} />
+        {copied ? "Copied" : "Copy link"}
+      </button>
     </div>
   );
 }

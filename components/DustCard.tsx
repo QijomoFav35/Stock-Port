@@ -1,9 +1,10 @@
 "use client";
 import SafetyNote from "@/components/SafetyNote";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useAccount, useWalletClient } from "wagmi";
 import ConnectButton from "@/components/ConnectButton";
 import ShareButtons from "@/components/ShareButtons";
+import Icon from "@/components/Icon";
 import { usePortBundle } from "@/hooks/usePortBundle";
 import { useDustSweep, type TokenStatus } from "@/hooks/useDustSweep";
 import { DUST_MAX_TOKENS, MIN_DUST_PORT_USDC } from "@/lib/constants";
@@ -14,12 +15,14 @@ const THRESHOLDS = [1, 10, 100, 1000];
 const usd = (n: number) => (n < 0.01 ? "<$0.01" : `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`);
 
 function StatusText({ s }: { s?: TokenStatus }) {
-  if (!s) return null;
-  if (s.state === "waiting") return <span className="text-neutral-500">Waiting</span>;
-  if (s.state === "swapping") return <span className="text-blue-600">Swapping…</span>;
-  if (s.state === "done") return <span className="text-green-600">Swapped</span>;
-  return <span className="text-red-600">{s.reason}</span>;
+  if (!s) return <span style={{ color: "var(--g60)" }}>Liquid</span>;
+  if (s.state === "waiting") return <span style={{ color: "var(--g60)" }}>Queued</span>;
+  if (s.state === "swapping") return <span style={{ color: "var(--blue)" }}>Swapping…</span>;
+  if (s.state === "done") return <span style={{ color: "var(--green)" }}>Swapped</span>;
+  return <span style={{ color: "var(--red)" }}>{s.reason}</span>;
 }
+
+const card: CSSProperties = { padding: 0, overflow: "hidden" };
 
 export default function DustCard({ geoBlocked }: { geoBlocked: boolean }) {
   const { address } = useAccount();
@@ -58,164 +61,220 @@ export default function DustCard({ geoBlocked }: { geoBlocked: boolean }) {
 
   if (geoBlocked) {
     return (
-      <section className="rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm">
-        Trading is not available in your region.
+      <section className="card pad" style={{ padding: 36, maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
+        <p style={{ fontWeight: 600 }}>Trading isn&apos;t available in your region.</p>
       </section>
     );
   }
   if (!address) {
     return (
-      <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 p-6 space-y-3 text-center">
-        <p className="text-neutral-500">Connect a wallet to find the small balances you can turn into stocks.</p>
-        <ConnectButton className="w-full" />
+      <section className="card pad" style={{ padding: 36, maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
+        <span style={{ color: "var(--yellow)" }}>
+          <Icon name="ph-broom" size={36} />
+        </span>
+        <p className="disp" style={{ fontSize: 24, margin: "12px 0 4px" }}>
+          Find your dust
+        </p>
+        <p className="muted" style={{ fontSize: 15, marginBottom: 20 }}>
+          Connect a wallet to scan Base for small balances you can sweep into stocks.
+        </p>
+        <ConnectButton full />
       </section>
     );
   }
 
   return (
-    <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-neutral-500 mr-1">Worth less than</span>
-        {THRESHOLDS.map((t) => (
-          <button
-            key={t}
-            onClick={() => {
-              setThreshold(t);
-              try {
-                localStorage.setItem(THRESHOLD_KEY, String(t));
-              } catch {}
-            }}
-            disabled={busy}
-            className={`rounded-full px-3 py-1 text-sm border ${
-              t === threshold
-                ? "border-blue-600 bg-blue-600 text-white"
-                : "border-neutral-300 dark:border-neutral-700"
-            }`}
-          >
-            ${t.toLocaleString()}
-          </button>
-        ))}
-        <button onClick={scan} disabled={busy} className="ml-auto text-sm underline disabled:opacity-50">
-          Refresh
-        </button>
-      </div>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 340px), 1fr))", gap: 24, alignItems: "start" }}>
+      <section className="card" style={card}>
+        <div style={{ padding: "24px 24px 18px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+          <div>
+            <div className="disp" style={{ fontSize: 24, display: "flex", gap: 10, alignItems: "center" }}>
+              <span style={{ color: "var(--yellow)" }}>
+                <Icon name="ph-broom" size={24} />
+              </span>
+              {dust.phase === "scanning" ? "Scanning Base…" : `${visible.length} dust tokens found`}
+            </div>
+            {dust.hiddenUnpriced > 0 && (
+              <div style={{ color: "var(--g60)", fontSize: 14 }}>
+                + {dust.hiddenUnpriced} with no price (usually spam) · hidden
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }} role="group" aria-label="Only tokens worth under">
+            <span style={{ color: "var(--g60)", fontSize: 14, marginRight: 4 }}>Dust under</span>
+            {THRESHOLDS.map((t) => (
+              <button
+                key={t}
+                className={`amt ${t === threshold ? "on" : ""}`}
+                style={{ height: 40, padding: "0 14px", fontSize: 14 }}
+                disabled={busy}
+                onClick={() => {
+                  setThreshold(t);
+                  try {
+                    localStorage.setItem(THRESHOLD_KEY, String(t));
+                  } catch {}
+                }}
+              >
+                ${t.toLocaleString()}
+              </button>
+            ))}
+          </div>
+        </div>
 
-      {dust.phase === "scanning" && <p className="text-sm text-neutral-500">Scanning your wallet on Base…</p>}
-
-      {dust.phase !== "scanning" && visible.length === 0 && dust.phase !== "error" && (
-        <p className="text-sm text-neutral-500">No small balances under ${threshold.toLocaleString()} found.</p>
-      )}
-
-      {visible.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-800">
-          <label className="flex items-center gap-3 px-3 py-2 text-sm bg-neutral-50 dark:bg-neutral-900">
+        {visible.length > 0 && (
+          <label style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 24px", borderTop: "1px solid var(--line)", background: "var(--raised)", fontSize: 14, fontWeight: 600 }}>
             <input
               type="checkbox"
               checked={allPicked}
               disabled={busy}
+              style={{ width: 20, height: 20 }}
               onChange={(e) => setPicked(e.target.checked ? new Set(visible.map((t) => t.token)) : new Set())}
             />
-            <span className="font-medium">Select all ({visible.length})</span>
+            Select all ({visible.length})
+            <button onClick={scan} disabled={busy} style={{ marginLeft: "auto", border: 0, background: "transparent", color: "var(--blue)", font: "inherit", cursor: "pointer" }}>
+              Rescan
+            </button>
           </label>
-          <ul className="divide-y divide-neutral-200 dark:divide-neutral-800 max-h-96 overflow-y-auto">
-            {visible.map((t) => (
-              <li key={t.token}>
-                <label className="flex items-center gap-3 px-3 py-2 text-sm">
-                  <input type="checkbox" checked={picked.has(t.token)} disabled={busy} onChange={() => toggle(t.token)} />
+        )}
+
+        {dust.phase !== "scanning" && visible.length === 0 && dust.phase !== "error" && (
+          <p style={{ padding: "20px 24px", borderTop: "1px solid var(--line)", color: "var(--g60)", fontSize: 14, margin: 0 }}>
+            No dust under ${threshold.toLocaleString()} found. Try a higher limit.
+          </p>
+        )}
+
+        <ul style={{ listStyle: "none", margin: 0, padding: 0, maxHeight: 520, overflowY: "auto" }}>
+          {visible.map((t) => (
+            <li key={t.token} style={{ borderTop: "1px solid var(--line)" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 24px", fontSize: 15, cursor: "pointer" }}>
+                <input type="checkbox" checked={picked.has(t.token)} disabled={busy} onChange={() => toggle(t.token)} style={{ width: 22, height: 22, flex: "none" }} />
+                <span className="logo" style={{ width: 36, height: 36 }}>
                   {t.logo ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={t.logo} alt="" className="h-6 w-6 rounded-full" />
+                    <img src={t.logo} alt="" />
                   ) : (
-                    <span className="h-6 w-6 rounded-full bg-neutral-200 dark:bg-neutral-800" />
+                    <span className="num" style={{ fontSize: 12 }}>
+                      {t.symbol.slice(0, 2).toUpperCase()}
+                    </span>
                   )}
-                  <span className="min-w-0 flex-1">
-                    <span className="font-medium">{t.symbol}</span>
-                    <span className="block truncate text-xs text-neutral-500">
-                      {Number(t.amount).toLocaleString(undefined, { maximumSignificantDigits: 6 })}
-                    </span>
+                </span>
+                <span style={{ minWidth: 0, flex: 1 }}>
+                  <b style={{ fontWeight: 600 }}>{t.symbol}</b>{" "}
+                  <span className="num" style={{ color: "var(--g60)", fontSize: 13 }}>
+                    {Number(t.amount).toLocaleString(undefined, { maximumSignificantDigits: 6 })}
                   </span>
-                  <span className="text-right">
-                    <span className="block">{usd(t.valueUsd)}</span>
-                    <span className="block text-xs">
-                      <StatusText s={dust.statuses[t.token.toLowerCase()]} />
-                    </span>
+                  <span style={{ display: "block", fontSize: 12 }}>
+                    <StatusText s={dust.statuses[t.token.toLowerCase()]} />
                   </span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {dust.hiddenUnpriced > 0 && (
-        <p className="text-xs text-neutral-500">
-          {dust.hiddenUnpriced} token{dust.hiddenUnpriced === 1 ? "" : "s"} hidden because they have no market price
-          (usually spam airdrops).
-        </p>
-      )}
-
-      <div className="rounded-xl bg-neutral-50 dark:bg-neutral-900 p-3 text-sm space-y-1">
-        <div className="flex justify-between">
-          <span className="text-neutral-500">Selected</span>
-          <span>
-            {selected.length} token{selected.length === 1 ? "" : "s"} · {usd(total)}
-          </span>
-        </div>
-        <p className="text-neutral-500">
-          Swapped to USDC, then into the Stock Port basket. Under ${MIN_DUST_PORT_USDC} after swaps stays in your wallet
-          as USDC. Tokens that would lose more than 10% or cost more than $0.10 in gas are skipped.
-        </p>
-      </div>
-
-      <label className="flex items-start gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={attest}
-          onChange={(e) => {
-            setAttest(e.target.checked);
-            try {
-              localStorage.setItem(ATTEST_KEY, e.target.checked ? "1" : "0");
-            } catch {}
-          }}
-          className="mt-1"
-        />
-        <span>I confirm I am not a US person, not located in the United States, and not in a sanctioned jurisdiction.</span>
-      </label>
-
-      {!builderCodeConfigured && (
-        <p className="text-sm text-red-600">Builder Code missing (NEXT_PUBLIC_BASE_BUILDER_CODE). Sending disabled.</p>
-      )}
-
-      <button
-        onClick={() => dust.sweep(selected, { attestNonUS: attest })}
-        disabled={!attest || !selected.length || busy || !builderCodeConfigured}
-        className="w-full rounded-xl bg-blue-600 py-3 font-semibold text-white disabled:opacity-50"
-      >
-        {busy ? dust.step ?? "Working…" : `Turn ${usd(total)} of dust into stocks`}
-      </button>
-
-      {dust.error && <p className="text-sm text-red-600">{dust.error}</p>}
-      <SafetyNote />
-      {dust.result && (
-        <div className="text-sm space-y-1">
-          <p className="text-green-600 font-medium">
-            {dust.result.keptAsUsdc
-              ? `Swept $${Number(dust.result.sweptUsdc).toFixed(2)} into USDC. That's under $${MIN_DUST_PORT_USDC}, so it stays in your wallet as USDC.`
-              : `Turned your dust into $${Number(dust.result.sweptUsdc).toFixed(2)} of stocks.`}
-          </p>
-          {[...dust.result.sweepHashes, ...(dust.result.port?.txHashes ?? [])].map((h) => (
-            <a key={h} href={`https://basescan.org/tx/${h}`} target="_blank" rel="noreferrer" className="block underline truncate">
-              {h}
-            </a>
+                </span>
+                <span className="num">{usd(t.valueUsd)}</span>
+              </label>
+            </li>
           ))}
-          {dust.result.port && (
-            <ShareButtons
-              hashes={[...dust.result.sweepHashes, ...dust.result.port.txHashes]}
-              spent={Number(dust.result.sweptUsdc)}
-              dust
+        </ul>
+      </section>
+
+      <div style={{ display: "grid", gap: 24 }}>
+        <section className="card pad" style={{ padding: 32 }}>
+          <div className="eyebrow">Selected</div>
+          <div className="num" style={{ fontSize: 56, lineHeight: 1, marginTop: 10 }}>
+            {usd(total)}
+          </div>
+          <div style={{ color: "var(--g60)", fontSize: 14, marginTop: 8, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            {selected.length} token{selected.length === 1 ? "" : "s"} → USDC <Icon name="tok-usdc" size={16} /> → the basket
+          </div>
+
+          <div style={{ marginTop: 24, display: "grid", gap: 0 }}>
+            <div style={{ display: "flex", gap: 14, paddingBottom: 16 }}>
+              <span className="num" style={{ width: 28, height: 28, borderRadius: 14, background: "var(--blue)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flex: "none" }}>
+                1
+              </span>
+              <div>
+                <div style={{ fontWeight: 600 }}>Swap dust → USDC</div>
+                <div style={{ color: "var(--g60)", fontSize: 14 }}>Routed via 0x · one tx per token · exact approvals</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 14 }}>
+              <span className="num" style={{ width: 28, height: 28, borderRadius: 14, border: "1px solid var(--line-hi)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, flex: "none" }}>
+                2
+              </span>
+              <div>
+                <div style={{ fontWeight: 600 }}>Buy the basket</div>
+                <div style={{ color: "var(--g60)", fontSize: 14 }}>
+                  Under ${MIN_DUST_PORT_USDC} after swaps stays in your wallet as USDC.
+                </div>
+              </div>
+            </div>
+          </div>
+          <p style={{ fontSize: 13, color: "var(--g60)", marginTop: 16 }}>
+            Tokens that would lose more than 10% to slippage or cost more than $0.10 in gas are skipped.
+          </p>
+
+          <label style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, minHeight: 44, fontSize: 14, color: "var(--g80)", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={attest}
+              style={{ width: 22, height: 22, flex: "none" }}
+              onChange={(e) => {
+                setAttest(e.target.checked);
+                try {
+                  localStorage.setItem(ATTEST_KEY, e.target.checked ? "1" : "0");
+                } catch {}
+              }}
             />
+            I confirm I&apos;m not a US person, not in the US and not in a restricted or sanctioned region.
+          </label>
+
+          {!builderCodeConfigured && (
+            <p style={{ fontSize: 14, color: "var(--red)" }}>Builder Code missing (NEXT_PUBLIC_BASE_BUILDER_CODE). Sending disabled.</p>
           )}
-        </div>
-      )}
-    </section>
+
+          <button
+            onClick={() => dust.sweep(selected, { attestNonUS: attest })}
+            disabled={!attest || !selected.length || busy || !builderCodeConfigured}
+            className="btn btn-blue"
+            style={{ width: "100%", marginTop: 12 }}
+          >
+            {busy ? dust.step ?? "Working…" : `Sweep ${selected.length} token${selected.length === 1 ? "" : "s"} · ${usd(total)}`}
+          </button>
+          {!attest && <div style={{ textAlign: "center", fontSize: 13, color: "var(--g60)", marginTop: 8 }}>Tick the box above to continue</div>}
+
+          {dust.error && <p style={{ fontSize: 14, color: "var(--red)", marginTop: 12 }}>{dust.error}</p>}
+          <SafetyNote />
+        </section>
+
+        {dust.result ? (
+          <section className="pad" style={{ borderRadius: 24, background: "var(--yellow)", padding: 28 }}>
+            <div style={{ fontWeight: 700, fontSize: 18, display: "flex", gap: 8, alignItems: "center" }}>
+              <Icon name="ph-broom" size={22} />
+              {dust.result.keptAsUsdc ? "Dust swept to USDC" : "Dust swept into stocks"}
+            </div>
+            <p style={{ fontSize: 15, margin: "6px 0 0" }}>
+              {dust.result.keptAsUsdc
+                ? `Swept $${Number(dust.result.sweptUsdc).toFixed(2)} into USDC. That's under $${MIN_DUST_PORT_USDC}, so it stays in your wallet.`
+                : `Swept $${Number(dust.result.sweptUsdc).toFixed(2)} of dust into tokenized stocks.`}
+            </p>
+            <div style={{ display: "grid", gap: 2, marginTop: 10, fontSize: 13 }}>
+              {[...dust.result.sweepHashes, ...(dust.result.port?.txHashes ?? [])].map((h, i) => (
+                <a key={h} href={`https://basescan.org/tx/${h}`} target="_blank" rel="noreferrer" style={{ color: "var(--ink)", textDecoration: "underline" }}>
+                  tx {i + 1} on Basescan
+                </a>
+              ))}
+            </div>
+            {dust.result.port && (
+              <ShareButtons hashes={[...dust.result.sweepHashes, ...dust.result.port.txHashes]} spent={Number(dust.result.sweptUsdc)} dust />
+            )}
+          </section>
+        ) : (
+          <section className="pad" style={{ borderRadius: 24, background: "var(--yellow)", padding: 28 }}>
+            <div style={{ fontWeight: 700, fontSize: 18, display: "flex", gap: 8, alignItems: "center" }}>
+              <Icon name="ph-broom" size={22} />
+              Post your sweep card
+            </div>
+            <p style={{ fontSize: 15, margin: "4px 0 0" }}>After the sweep you get a card for X, read straight from Base.</p>
+          </section>
+        )}
+      </div>
+    </div>
   );
 }

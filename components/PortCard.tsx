@@ -5,16 +5,19 @@ import ConnectButton from "@/components/ConnectButton";
 import ReviewPanel from "@/components/ReviewPanel";
 import SafetyNote from "@/components/SafetyNote";
 import ShareButtons from "@/components/ShareButtons";
+import Icon from "@/components/Icon";
 import { usePortBundle } from "@/hooks/usePortBundle";
 import { MAX_PORT_USDC, MIN_PORT_USDC } from "@/lib/constants";
 
 const ATTEST_KEY = "sp_attest_non_us";
+const PRESETS = [5, 10, 25, 100];
+const ROUTE = { o1: "o1 Exchange", "0x": "0x", aerodrome: "Aerodrome" } as const;
 
 export default function PortCard({ geoBlocked }: { geoBlocked: boolean }) {
   const { address } = useAccount();
   const { data: walletClient } = useWalletClient();
   const { port, confirm, cancel, plan, status, step, error, result, builderCodeConfigured } = usePortBundle(walletClient, address);
-  const [amount, setAmount] = useState("5");
+  const [amount, setAmount] = useState("25");
   const [attest, setAttest] = useState(false);
 
   useEffect(() => {
@@ -35,66 +38,151 @@ export default function PortCard({ geoBlocked }: { geoBlocked: boolean }) {
 
   if (geoBlocked) {
     return (
-      <section className="rounded-2xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm">
-        Trading is not available in your region. You can still view the basket, the Agent&apos;s Port Log and
-        public stats.
+      <section className="card pad" style={{ padding: 36, background: "var(--raised)" }}>
+        <div className="eyebrow">Buy the basket</div>
+        <p style={{ marginTop: 12, fontWeight: 600 }}>Trading isn&apos;t available in your region.</p>
+        <p className="muted" style={{ fontSize: 14 }}>
+          You can still view the basket and verify every tx onchain.
+        </p>
+      </section>
+    );
+  }
+
+  if (result) {
+    const spent = Number(result.quote.totalUsdc) / 1e6;
+    return (
+      <section className="card pad" style={{ padding: 36, textAlign: "center" }}>
+        <div
+          style={{
+            width: 88,
+            height: 88,
+            borderRadius: 44,
+            background: "var(--blue)",
+            color: "#fff",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 0 0 10px rgba(0,0,255,.12)",
+          }}
+        >
+          <Icon name="ph-check" size={40} />
+        </div>
+        <h3 className="disp" style={{ fontSize: 40, margin: "24px 0 0" }}>
+          You&apos;re in.
+        </h3>
+        <p className="muted" style={{ marginTop: 8 }}>
+          Your bag now matches the Agent&apos;s. ${spent.toFixed(2)} routed via {ROUTE[result.quote.provider]}
+          {result.mode === "batch" ? " in one batched tx." : ` in ${result.txHashes.length} txs.`}
+        </p>
+        <ShareButtons hashes={result.txHashes} spent={spent} />
+        <div style={{ marginTop: 16, display: "grid", gap: 4, fontSize: 14 }}>
+          {result.txHashes.map((h, i) => (
+            <a key={h} href={`https://basescan.org/tx/${h}`} target="_blank" rel="noreferrer" style={{ display: "inline-flex", gap: 4, justifyContent: "center", alignItems: "center" }}>
+              View tx {result.txHashes.length > 1 ? i + 1 : ""} on Basescan <Icon name="ph-arrow-up-right" size={14} />
+            </a>
+          ))}
+        </div>
       </section>
     );
   }
 
   return (
-    <section className="rounded-2xl border border-neutral-200 dark:border-neutral-800 p-4 space-y-4">
-      <h2 className="font-semibold">Port USDC</h2>
-      <label className="block">
-        <span className="text-sm text-neutral-500">Amount (USDC on Base, min ${MIN_PORT_USDC})</span>
+    <section id="port" className="card pad" style={{ padding: 36 }}>
+      <div className="eyebrow">Buy the basket</div>
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginTop: 16,
+          paddingBottom: 12,
+          borderBottom: "2px solid var(--blue)",
+          cursor: "text",
+        }}
+      >
+        <span className="num" style={{ fontSize: 56, lineHeight: 1 }}>
+          $
+        </span>
         <input
           inputMode="decimal"
+          aria-label="Amount in USDC"
           value={amount}
           onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ""))}
-          className="mt-1 w-full rounded-xl border border-neutral-300 dark:border-neutral-700 bg-transparent px-3 py-2 text-lg"
+          disabled={busy || status === "review"}
+          className="num"
+          style={{ fontSize: 56, lineHeight: 1, border: 0, outline: "none", background: "transparent", width: "100%", minWidth: 0, color: "var(--ink)", padding: 0 }}
         />
-      </label>
-      <label className="flex items-start gap-2 text-sm">
-        <input type="checkbox" checked={attest} onChange={(e) => onAttest(e.target.checked)} className="mt-1" />
-        <span>
-          I confirm I am not a US person, not located in the United States, and not in a sanctioned jurisdiction.
+        <span
+          className="nowrap"
+          style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "8px 14px", borderRadius: 999, background: "var(--raised)", fontWeight: 600, fontSize: 15 }}
+        >
+          <Icon name="tok-usdc" size={20} />
+          USDC
         </span>
+      </label>
+      <div style={{ fontSize: 13, color: "var(--g60)", marginTop: 8 }}>
+        Min ${MIN_PORT_USDC}, max ${MAX_PORT_USDC}. Type an amount or tap one.
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 18, flexWrap: "wrap" }}>
+        {PRESETS.filter((p) => p <= MAX_PORT_USDC).map((p) => (
+          <button key={p} className={`amt ${Number(amount) === p ? "on" : ""}`} onClick={() => setAmount(String(p))} disabled={busy || status === "review"}>
+            ${p}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ marginTop: 24, display: "grid", gap: 10, fontSize: 15, color: "var(--g60)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <span>You get</span>
+          <span className="num" style={{ color: "var(--ink)" }}>
+            the Agent&apos;s tokenized stock mix
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <span>Gas</span>
+          <span className="num" style={{ color: "var(--ink)" }}>
+            ~$0.02
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <span>Custody</span>
+          <span style={{ color: "var(--ink)" }}>Your wallet (self-custody)</span>
+        </div>
+      </div>
+
+      <label style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 22, minHeight: 44, fontSize: 14, color: "var(--g80)", cursor: "pointer" }}>
+        <input type="checkbox" checked={attest} onChange={(e) => onAttest(e.target.checked)} style={{ width: 22, height: 22, flex: "none" }} />
+        I confirm I&apos;m not a US person, not in the US and not in a restricted or sanctioned region.
       </label>
 
       {!builderCodeConfigured && (
-        <p className="text-sm text-red-600">Builder Code missing (NEXT_PUBLIC_BASE_BUILDER_CODE). Sending disabled.</p>
+        <p style={{ fontSize: 14, color: "var(--red)" }}>Builder Code missing (NEXT_PUBLIC_BASE_BUILDER_CODE). Sending disabled.</p>
       )}
 
-      {!address ? (
-        <ConnectButton className="w-full" />
-      ) : status === "review" && plan ? (
-        <ReviewPanel plan={plan} onConfirm={confirm} onCancel={cancel} />
-      ) : (
-        <button
-          onClick={() => port(amount, { attestNonUS: attest, review: true }).catch(() => {})}
-          disabled={!attest || !validAmount || busy || !builderCodeConfigured}
-          className="w-full rounded-xl bg-blue-600 py-3 font-semibold text-white disabled:opacity-50"
-        >
-          {busy ? step ?? "Working…" : `Port $${amount || 0} into the basket`}
-        </button>
-      )}
+      <div style={{ marginTop: 12 }}>
+        {!address ? (
+          <ConnectButton full />
+        ) : status === "review" && plan ? (
+          <ReviewPanel plan={plan} onConfirm={confirm} onCancel={cancel} />
+        ) : (
+          <>
+            <button
+              onClick={() => port(amount, { attestNonUS: attest, review: true }).catch(() => {})}
+              disabled={!attest || !validAmount || busy || !builderCodeConfigured}
+              className="btn btn-blue"
+              style={{ width: "100%", height: 58, fontSize: 17 }}
+            >
+              {busy ? step ?? "Working…" : `Review tx · $${amount || 0}`}
+            </button>
+            {!attest && (
+              <div style={{ textAlign: "center", fontSize: 13, color: "var(--g60)", marginTop: 8 }}>Tick the box above to continue</div>
+            )}
+          </>
+        )}
+      </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p style={{ fontSize: 14, color: "var(--red)", marginTop: 12 }}>{error}</p>}
       <SafetyNote />
-      {result && (
-        <div className="text-sm space-y-1">
-          <p className="text-green-600 font-medium">
-            Ported via {result.mode === "batch" ? "one batched confirmation" : `${result.txHashes.length} transactions`}, routed via{" "}
-            {result.quote.provider === "o1" ? "o1 Exchange" : result.quote.provider === "0x" ? "0x" : "Aerodrome"}.
-          </p>
-          {result.txHashes.map((h) => (
-            <a key={h} href={`https://basescan.org/tx/${h}`} target="_blank" rel="noreferrer" className="block underline truncate">
-              {h}
-            </a>
-          ))}
-          <ShareButtons hashes={result.txHashes} spent={Number(result.quote.totalUsdc) / 1e6} />
-        </div>
-      )}
     </section>
   );
 }

@@ -13,7 +13,7 @@ function imageUrl(sp: Record<string, string | string[] | undefined>) {
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const sp = await searchParams;
   const img = imageUrl(sp);
-  const title = sp.dust === "1" ? "I turned my wallet dust into stocks" : "I ported into tokenized stocks on Base";
+  const title = sp.dust === "1" ? "Swept my dust into tokenized stocks" : "Copied the AI's bag of tokenized stocks";
   return {
     metadataBase: process.env.NEXT_PUBLIC_SITE_URL ? new URL(process.env.NEXT_PUBLIC_SITE_URL) : undefined,
     title: `${title} · Stock Port`,
@@ -27,25 +27,28 @@ export default async function SharePage({ searchParams }: Props) {
   const hashes = parseTxParam(sp.tx);
   const data = await getShareData(hashes).catch(() => null);
   return (
-    <main className="mx-auto max-w-xl px-4 py-10 space-y-6">
+    <main className="wrap" style={{ maxWidth: 760, paddingTop: 56, paddingBottom: 48 }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={imageUrl(sp)} alt="Stock Port share card" className="w-full rounded-2xl border border-neutral-200 dark:border-neutral-800" />
+      <img src={imageUrl(sp)} alt="Stock Port share card" style={{ width: "100%", borderRadius: 24, border: "1px solid var(--line)", display: "block" }} />
       {data ? (
-        <p className="text-sm text-neutral-500">
-          {data.owner.slice(0, 6)}…{data.owner.slice(-4)} spent ${data.spentUsdc.toFixed(2)} USDC on{" "}
-          {data.legs.map((l) => l.symbol).join(", ")}. Read from Base:{" "}
+        <p style={{ fontSize: 14, color: "var(--g60)", marginTop: 16 }}>
+          <span className="num">
+            {data.owner.slice(0, 6)}…{data.owner.slice(-4)}
+          </span>{" "}
+          spent <span className="num">${data.spentUsdc.toFixed(2)}</span> USDC on {data.legs.map((l) => l.symbol).join(", ")}. Read from
+          Base:{" "}
           {hashes.map((h, i) => (
-            <a key={h} href={`https://basescan.org/tx/${h}`} target="_blank" rel="noreferrer" className="underline">
+            <a key={h} href={`https://basescan.org/tx/${h}`} target="_blank" rel="noreferrer">
               tx {i + 1}
               {i < hashes.length - 1 ? ", " : ""}
             </a>
           ))}
         </p>
       ) : (
-        <p className="text-sm text-neutral-500">We couldn&apos;t read this buy from Base.</p>
+        <p style={{ fontSize: 14, color: "var(--g60)", marginTop: 16 }}>We couldn&apos;t read this tx from Base.</p>
       )}
-      <Link href="/" className="block w-full rounded-xl bg-blue-600 py-3 text-center font-semibold text-white">
-        Port into the basket yourself
+      <Link href="/#buy" className="btn btn-blue" style={{ width: "100%", marginTop: 20 }}>
+        Copy the Agent from $5
       </Link>
     </main>
   );
