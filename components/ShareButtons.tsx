@@ -9,19 +9,22 @@ export default function ShareButtons({
   spent,
   dust = false,
   basket,
+  from,
 }: {
   hashes: Hash[];
   spent: number;
   dust?: boolean;
   basket?: ShareBasket;
+  /** Set for a rotation: the basket the user rotated out of. */
+  from?: ShareBasket;
 }) {
   const [copied, setCopied] = useState(false);
   if (!hashes.length) return null;
   const origin = typeof window === "undefined" ? "" : window.location.origin;
-  const link = shareUrl(origin, hashes, dust, basket);
+  const link = shareUrl(origin, hashes, dust, basket, from);
   return (
     <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
-      <a href={shareOnXUrl(origin, hashes, spent, dust, basket)} target="_blank" rel="noreferrer" className="btn btn-ink" style={{ flex: 1, height: 48, fontSize: 15, padding: "0 12px", minWidth: 0 }}>
+      <a href={shareOnXUrl(origin, hashes, spent, dust, basket, from)} target="_blank" rel="noreferrer" className="btn btn-ink" style={{ flex: 1, height: 48, fontSize: 15, padding: "0 12px", minWidth: 0 }}>
         <Icon name="ph-x-logo" size={18} />
         Share on X
       </a>

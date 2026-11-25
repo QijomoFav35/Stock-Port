@@ -7,6 +7,7 @@ import type { PegHealth } from "@/lib/peg";
 import BasketDesk, { type StockInfo } from "@/components/BasketDesk";
 import Guardrails from "@/components/Guardrails";
 import StockRadar from "@/components/StockRadar";
+import LeaderboardCard from "@/components/LeaderboardCard";
 import Icon from "@/components/Icon";
 import type { IconName } from "@/lib/icons";
 import type { ReactNode } from "react";
@@ -257,6 +258,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             </p>
           </div>
         </div>
+      </section>
+
+      <section className="wrap" style={{ paddingTop: 40, paddingBottom: 0 }}>
+        <LeaderboardCard />
       </section>
 
       {all.length > 0 && (

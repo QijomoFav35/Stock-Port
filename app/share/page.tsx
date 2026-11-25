@@ -7,13 +7,20 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
 function imageUrl(sp: Record<string, string | string[] | undefined>) {
   const q = new URLSearchParams({ tx: parseTxParam(sp.tx).join(",") });
   if (sp.dust === "1") q.set("dust", "1");
+  if (typeof sp.b === "string") q.set("b", sp.b);
+  if (typeof sp.from === "string") q.set("from", sp.from);
   return `/share/image?${q}`;
 }
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
   const sp = await searchParams;
   const img = imageUrl(sp);
-  const title = sp.dust === "1" ? "Swept my dust into tokenized stocks" : "Copied the AI's bag of tokenized stocks";
+  const title =
+    typeof sp.from === "string"
+      ? "Rotated my tokenized stocks basket"
+      : sp.dust === "1"
+        ? "Swept my dust into tokenized stocks"
+        : "Copied a basket of tokenized stocks";
   return {
     metadataBase: process.env.NEXT_PUBLIC_SITE_URL ? new URL(process.env.NEXT_PUBLIC_SITE_URL) : undefined,
     title: `${title} · Stock Port`,
@@ -48,7 +55,7 @@ export default async function SharePage({ searchParams }: Props) {
         <p style={{ fontSize: 14, color: "var(--g60)", marginTop: 16 }}>We couldn&apos;t read this tx from Base.</p>
       )}
       <Link href="/#buy" className="btn btn-blue" style={{ width: "100%", marginTop: 20 }}>
-        Copy the Agent from $5
+        Pick a basket from $5
       </Link>
     </main>
   );

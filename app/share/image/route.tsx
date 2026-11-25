@@ -5,6 +5,7 @@
 import { ImageResponse } from "next/og";
 import type { NextRequest } from "next/server";
 import { getShareData, parseTxParam } from "@/lib/share";
+import { BASKETS } from "@/lib/baskets";
 
 export const revalidate = 3600;
 
@@ -13,13 +14,21 @@ const fmtShares = (n: number) => (n >= 1 ? n.toFixed(3) : n.toPrecision(3));
 export async function GET(req: NextRequest) {
   const hashes = parseTxParam(req.nextUrl.searchParams.get("tx"));
   const dust = req.nextUrl.searchParams.get("dust") === "1";
+  const basket = BASKETS.find((b) => b.id === req.nextUrl.searchParams.get("b"));
+  const from = BASKETS.find((b) => b.id === req.nextUrl.searchParams.get("from"));
+  const rotated = !!(basket && from);
   const data = await getShareData(hashes).catch(() => null);
 
-  const headline = !data
-    ? "Own what the AI owns."
-    : dust
-      ? `Swept $${data.spentUsdc.toFixed(2)} of dust into tokenized stocks.`
-      : `Copied the AI's bag: $${data.spentUsdc.toFixed(2)} into tokenized stocks.`;
+  const usd = data ? "$" + data.spentUsdc.toFixed(2) : "";
+  const headline = rotated
+    ? `Rotated out of ${from!.name} into ${basket!.name}.`
+    : !data
+      ? "Own what the AI owns."
+      : dust
+        ? `Swept ${usd} of dust into ${basket ? basket.name : "tokenized stocks"}.`
+        : basket
+          ? `Copied ${basket.name}: ${usd} in tokenized stocks.`
+          : `Copied the AI's bag: ${usd} into tokenized stocks.`;
 
   return new ImageResponse(
     (
@@ -69,7 +78,7 @@ export async function GET(req: NextRequest) {
               letterSpacing: 2,
             }}
           >
-            {dust ? "DUST SWEPT" : "BAG COPIED"}
+            {rotated ? "ROTATED" : dust ? "DUST SWEPT" : "BAG COPIED"}
           </div>
         </div>
 

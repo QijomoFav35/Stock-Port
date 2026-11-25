@@ -86,7 +86,7 @@ export default function RotateCard({
           {q.from.name} → <em>{q.to.name}</em>
         </div>
         <p className="muted" style={{ marginTop: 8 }}>{usdText(q.usdcIn)} moved in {r.result.mode === "batch" ? "one tx" : `${r.result.txHashes.length} txs`}.</p>
-        <ShareButtons hashes={r.result.txHashes} spent={Number(formatUnits(BigInt(q.usdcIn), 6))} basket={{ id: q.to.id, name: q.to.name }} />
+        <ShareButtons hashes={r.result.txHashes} spent={Number(formatUnits(BigInt(q.usdcIn), 6))} basket={{ id: q.to.id, name: q.to.name }} from={{ id: q.from.id, name: q.from.name }} />
         <div style={{ marginTop: 14, display: "grid", gap: 4, fontSize: 14 }}>
           {r.result.txHashes.map((h, i) => (
             <a key={h} href={`https://basescan.org/tx/${h}`} target="_blank" rel="noreferrer">
