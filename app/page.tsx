@@ -137,7 +137,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           </p>
           <div className="r4" style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 34, flexWrap: "wrap" }}>
             <a href="#routes" className="btn btn-blue">
-              Take a tour
+              Explore the port
             </a>
             <a href="#borrow" className="btn btn-ghost">
               Borrow against your stocks
@@ -356,7 +356,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       <div className="mbar-pad" />
       <div className="mbar">
         <a href="#routes" className="btn btn-blue">
-          Take a tour
+          Explore the port
         </a>
       </div>
     </main>
