@@ -26,7 +26,7 @@ const SAMPLE: GuardState = {
   trigger: 1.15,
   target: 1.4,
   weekendTrigger: 1.3,
-  lastProtect: Math.floor(Date.now() / 1000) - 3 * 86400,
+  lastProtect: 1795359600, // fixed so server and client render the same sample
   giverApproved: true,
   needed: false,
   health: 1.62,
@@ -38,6 +38,9 @@ export default function GuardCard() {
   const { data: walletClient } = useWalletClient();
   const live = useLoanGuard(walletClient, address);
   const [previewNote, setPreviewNote] = useState(false);
+  // Dates are formatted in the viewer's locale and time zone, so render them only after hydration.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   // Preview mode: same shape as the live hook, sample state, and buttons that only show a note.
   const g: typeof live = GUARD_PREVIEW
     ? {
@@ -131,7 +134,7 @@ export default function GuardCard() {
               {g.state.lastProtect > 0 && (
                 <div className="rule">
                   <span>Last top-up</span>
-                  <span className="num">{new Date(g.state.lastProtect * 1000).toLocaleString()}</span>
+                  <span className="num">{mounted ? new Date(g.state.lastProtect * 1000).toLocaleString() : "…"}</span>
                 </div>
               )}
             </div>
