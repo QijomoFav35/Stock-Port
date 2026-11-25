@@ -70,7 +70,7 @@ export default function RotateCard({
 
   if (geoBlocked) {
     return (
-      <section className="card pad" style={{ padding: 32 }}>
+      <section className="card pad">
         <div className="eyebrow">Rotate</div>
         <p className="muted" style={{ marginTop: 12 }}>Trading isn&apos;t available in your region.</p>
       </section>
@@ -80,7 +80,7 @@ export default function RotateCard({
   if (r.status === "success" && r.result) {
     const q = r.result.quote;
     return (
-      <section className="card pad" style={{ padding: 32, textAlign: "center" }}>
+      <section className="card pad" style={{ textAlign: "center" }}>
         <div className="eyebrow">Rotated</div>
         <div className="disp" style={{ fontSize: 32, marginTop: 10 }}>
           {q.from.name} → <em>{q.to.name}</em>
@@ -102,7 +102,7 @@ export default function RotateCard({
   }
 
   return (
-    <section className="card pad" style={{ padding: 32 }}>
+    <section className="card pad">
       <div className="eyebrow">Rotate into {to.name}</div>
       <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
         <label style={{ fontSize: 13, color: "var(--g60)" }}>Out of</label>
@@ -221,7 +221,7 @@ export default function RotateCard({
           </div>
         </>
       )}
-      {r.error && <p style={{ fontSize: 14, color: "var(--red)", marginTop: 12 }}>{r.error}</p>}
+      {r.error && <p className="err">{r.error}</p>}
     </section>
   );
 }

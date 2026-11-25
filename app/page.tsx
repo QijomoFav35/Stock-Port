@@ -11,6 +11,7 @@ import LeaderboardCard from "@/components/LeaderboardCard";
 import BorrowCard from "@/components/BorrowCard";
 import GuardCard from "@/components/GuardCard";
 import GatesBoard from "@/components/GatesBoard";
+import GateHead from "@/components/GateHead";
 import Icon from "@/components/Icon";
 import type { IconName } from "@/lib/icons";
 import type { ReactNode } from "react";
@@ -197,39 +198,56 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </div>
       </div>
 
-      <section className="wrap" style={{ paddingTop: 64, paddingBottom: 0, scrollMarginTop: 80 }}>
-        <div style={{ maxWidth: 640, margin: "0 auto", scrollMarginTop: 80 }}>
+      <section id="borrow" className="wrap sec">
+        <GateHead
+          gate="A1"
+          label="Borrow"
+          title={
+            <>
+              Borrow against your stocks. <em>Never sell.</em>
+            </>
+          }
+          sub="USDC from Aave V4 on Base against 8 tokenized stocks. Your shares stay in the position, and you repay whenever you want."
+        />
+        <div className="sec-narrow">
           <BorrowCard geoBlocked={geoBlocked} />
-          <div style={{ marginTop: 24 }}>
-            <GuardCard />
-          </div>
         </div>
       </section>
 
-      <section id="buy" className="wrap" style={{ paddingTop: 64, paddingBottom: 32, scrollMarginTop: 80 }}>
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div className="eyebrow">No stocks yet? Buy a basket</div>
-          <h2 className="disp" style={{ fontSize: "clamp(34px,4.6vw,52px)", lineHeight: 1.05, margin: "10px 0 0" }}>
-            {BASKETS.length} baskets. <em>Rotate anytime.</em>
-          </h2>
+      <section id="guard" className="wrap sec">
+        <GateHead
+          gate="A2"
+          label="Loan Guard"
+          title={
+            <>
+              An agent that <em>watches your loan.</em>
+            </>
+          }
+          sub="Stocks can drop while you sleep, and stock prices freeze over the weekend. Loan Guard repays from your own USDC reserve before Aave can liquidate you."
+        />
+        <div className="sec-narrow">
+          <GuardCard />
         </div>
-        {basketError && (
-          <p style={{ color: "var(--red)", fontSize: 14, marginBottom: 16 }}>Prices unavailable right now: {basketError}</p>
-        )}
+      </section>
+
+      <section id="buy" className="wrap sec">
+        <GateHead
+          gate="B1 · B2"
+          label="Buy and rotate"
+          title={
+            <>
+              {BASKETS.length} baskets. <em>Rotate anytime.</em>
+            </>
+          }
+          sub="No stocks yet? Buy a themed basket from $5 in USDC, then switch themes in one tx."
+        />
+        {basketError && <p className="err">Prices unavailable right now: {basketError}</p>}
         <BasketDesk baskets={BASKETS} initialId={initial.id} stocks={stocks} peg={pegBy} geoBlocked={geoBlocked} />
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))",
-            gap: 24,
-            alignItems: "start",
-            marginTop: 24,
-          }}
-        >
+        <div className="grid-2">
           <Guardrails />
-          <div className="card pad" style={{ padding: 36 }}>
+          <div className="card pad">
             <div className="eyebrow">How the basket works</div>
-            <div className="disp" style={{ fontSize: 28, lineHeight: 1.2, marginTop: 14, display: "flex", alignItems: "center", gap: 12 }}>
+            <div className="disp card-title" style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span className="logo" style={{ width: 36, height: 36, background: "var(--blue)", color: "#fff" }}>
                 <Icon name="ph-scales" size={18} />
               </span>
@@ -238,33 +256,23 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
               </span>
             </div>
             <div style={{ display: "grid", gap: 10, marginTop: 24 }}>
-              <div className="rule">
-                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Icon name="ph-scales" size={18} />
-                  Baskets
-                </span>
-                <span className="num" style={{ fontSize: 14, textAlign: "right" }}>
-                  {BASKETS.length} themes · {UNIVERSE.length} stocks
-                </span>
-              </div>
-              <div className="rule">
-                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Icon name="ph-lightning" size={18} />
-                  Route
-                </span>
-                <span className="num" style={{ fontSize: 14, textAlign: "right" }}>
-                  o1 Exchange, Aerodrome fallback
-                </span>
-              </div>
-              <div className="rule">
-                <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Icon name="ph-shield-check" size={18} />
-                  Approvals
-                </span>
-                <span className="num" style={{ fontSize: 14, textAlign: "right" }}>
-                  Exact amount only
-                </span>
-              </div>
+              {(
+                [
+                  ["ph-scales", "Baskets", <>
+                    <span className="num">{BASKETS.length}</span> themes · <span className="num">{UNIVERSE.length}</span> stocks
+                  </>],
+                  ["ph-lightning", "Route", "o1 Exchange, Aerodrome fallback"],
+                  ["ph-shield-check", "Approvals", "Exact amount only"],
+                ] as [IconName, string, ReactNode][]
+              ).map(([icon, k, v]) => (
+                <div key={k} className="rule">
+                  <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <Icon name={icon} size={18} />
+                    {k}
+                  </span>
+                  <span style={{ fontSize: 14, textAlign: "right" }}>{v}</span>
+                </div>
+              ))}
             </div>
             <p style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "var(--g80)", marginTop: 18 }}>
               <Icon name="ph-receipt" size={16} />
@@ -274,53 +282,72 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </div>
       </section>
 
-      <section id="race" className="wrap" style={{ paddingTop: 40, paddingBottom: 0, scrollMarginTop: 80 }}>
-        <LeaderboardCard />
+      <section id="sweep" className="wrap sec">
+        <GateHead
+          gate="B3"
+          label="Dust Sweep"
+          title={
+            <>
+              Turn wallet dust <em>into stocks.</em>
+            </>
+          }
+          sub="Small balances sitting in your wallet? Sweep them to USDC, then into a basket."
+        />
+        <div className="sec-narrow">
+          <a href="/dust" className="card pad sweep-link">
+            <span className="logo" style={{ width: 44, height: 44, background: "var(--yellow)", color: "var(--ink)" }}>
+              <Icon name="ph-sparkle" size={20} />
+            </span>
+            <span style={{ flex: 1 }}>
+              <span style={{ display: "block", fontWeight: 700, fontSize: 18, color: "var(--ink)" }}>Open Dust Sweep</span>
+              <span style={{ display: "block", fontSize: 14, color: "var(--g60)", marginTop: 2 }}>
+                Scans your wallet, hides spam and skips anything that isn't worth the Gas.
+              </span>
+            </span>
+            <span className="btn btn-blue btn-sm">Sweep</span>
+          </a>
+        </div>
       </section>
 
-      {all.length > 0 && (
-        <section className="wrap" style={{ paddingTop: 40, paddingBottom: 16 }}>
-          <StockRadar all={all} basket={[...UNIVERSE]} peg={peg} />
-        </section>
-      )}
+      <section id="race" className="wrap sec">
+        <GateHead
+          gate="B4"
+          label="Basket race"
+          title={
+            <>
+              Which basket is <em>winning this week.</em>
+            </>
+          }
+          sub="Every basket ranked by its Chainlink NAV, read onchain."
+        />
+        <LeaderboardCard />
+        {all.length > 0 && (
+          <div style={{ marginTop: 24 }}>
+            <StockRadar all={all} basket={[...UNIVERSE]} peg={peg} />
+          </div>
+        )}
+      </section>
 
-      <section className="wrap" style={{ paddingTop: 72, paddingBottom: 48, textAlign: "center" }}>
-        <h2 className="disp" style={{ fontSize: "clamp(36px,5vw,54px)", lineHeight: 1.05, margin: 0 }}>
-          Three steps. <em>Non-custodial, end to end.</em>
-        </h2>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))",
-            gap: 20,
-            marginTop: 52,
-            textAlign: "left",
-          }}
-        >
+      <section className="wrap sec" style={{ paddingBottom: 48 }}>
+        <div className="gate-head">
+          <h2 className="disp gate-title">
+            How the port works. <em>Non-custodial, end to end.</em>
+          </h2>
+        </div>
+        <div className="steps">
           {(
             [
-              ["ph-chart-line-up", "Pick a theme", "Mag 7, AI Bubble, Pre-IPO and more. From $5 in USDC, or sweep your dust first."],
-              ["ph-arrows-left-right", "Buy the basket", "One review, one signature. Tokenized stocks go straight to your wallet."],
-              ["ph-eye", "Verify onchain", "Every tx is tagged with our Builder Code and visible on Basescan. Don't trust, verify."],
+              ["ph-wallet", "Connect your wallet", "Base Account, MetaMask, Rabby, Rainbow or WalletConnect. Your keys never leave your wallet."],
+              ["ph-arrows-left-right", "Pick a gate", "Borrow, guard your loan, buy a basket, rotate or sweep dust. Each move is one review and one signature."],
+              ["ph-eye", "Verify onchain", "Every tx carries our Builder Code and shows up on Basescan. Don't trust, verify."],
             ] as [IconName, string, string][]
           ).map(([icon, title, body]) => (
-            <div key={title} className="card" style={{ padding: 28 }}>
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 22,
-                  border: "1px solid var(--line-hi)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "var(--blue)",
-                }}
-              >
+            <div key={title} className="card pad step">
+              <div className="step-icon">
                 <Icon name={icon} size={22} />
               </div>
-              <div style={{ fontWeight: 700, fontSize: 19, marginTop: 18 }}>{title}</div>
-              <div style={{ color: "var(--g60)", marginTop: 6, fontSize: 15 }}>{body}</div>
+              <div className="step-title">{title}</div>
+              <div className="step-body">{body}</div>
             </div>
           ))}
         </div>
@@ -328,8 +355,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
 
       <div className="mbar-pad" />
       <div className="mbar">
-        <a href="#buy" className="btn btn-blue">
-          Pick a basket from $5
+        <a href="#gates" className="btn btn-blue">
+          See all gates
         </a>
       </div>
     </main>

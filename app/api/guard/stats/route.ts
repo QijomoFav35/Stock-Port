@@ -1,10 +1,16 @@
-/** GET /api/guard/stats: public Loan Guard numbers (onchain) plus the keeper's recent Agent log. */
+/**
+ * GET /api/guard/stats: public Loan Guard numbers, read onchain so they survive restarts and anyone can verify them.
+ * Totals come from the contract, recent top-ups from each guard's lastProtect. Only the keeper's last check
+ * (a liveness signal) comes from server memory.
+ */
 import { NextResponse } from "next/server";
 import { publicClient } from "@/lib/publicClient";
 import { LOAN_GUARD, loanGuardAbi } from "@/lib/loanGuard";
 import { keeperLog, listGuardedUsers } from "@/lib/guardKeeper";
 
 export const dynamic = "force-dynamic";
+
+const mask = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 export async function GET() {
   if (!LOAN_GUARD) return NextResponse.json({ deployed: false });
@@ -17,12 +23,30 @@ export async function GET() {
       ],
     });
     const users = await listGuardedUsers();
-    const log = keeperLog().slice(0, 20).map((r) => ({
-      ...r,
-      entries: r.entries.map((e) => ({ ...e, user: `${e.user.slice(0, 6)}…${e.user.slice(-4)}` })),
-    }));
+    // guards(user) = [reserve, trigger, target, weekendTrigger, lastProtect]
+    const guards: readonly (readonly bigint[])[] = users.length
+      ? ((await publicClient.multicall({
+          allowFailure: false,
+          contracts: users.map((u) => ({ address: LOAN_GUARD!, abi: loanGuardAbi, functionName: "guards", args: [u] }) as const),
+        })) as unknown as readonly (readonly bigint[])[])
+      : [];
+    const recent = guards
+      .map((g, i) => ({ user: mask(users[i]), at: Number(g[4]) * 1000 }))
+      .filter((r) => r.at > 0)
+      .sort((a, b) => b.at - a.at)
+      .slice(0, 8);
+    const armed = guards.filter((g) => g[1] > 0n).length;
+    const last = keeperLog()[0];
     return NextResponse.json(
-      { deployed: true, address: LOAN_GUARD, guarded: users.length, totalRepaid: String(totalRepaid), protectCount: Number(protectCount), log },
+      {
+        deployed: true,
+        address: LOAN_GUARD,
+        guarded: armed,
+        totalRepaid: String(totalRepaid),
+        protectCount: Number(protectCount),
+        recent,
+        lastCheck: last ? { at: last.at, checked: last.checked, atRisk: last.atRisk } : null,
+      },
       { headers: { "cache-control": "public, max-age=30" } },
     );
   } catch (e) {

@@ -23,6 +23,8 @@ export type GuardState = {
   lastProtect: number;
   giverApproved: boolean;
   needed: boolean;
+  /** Current Aave health factor (1.00 = liquidation). Very large when there is no debt. */
+  health: number;
 };
 type SendCall = { to: Address; data: Hex; label: string };
 
@@ -79,6 +81,7 @@ export function useLoanGuard(walletClient: WalletClient | undefined, account: Ad
           lastProtect: Number(gs[4]),
           giverApproved: ok as boolean,
           needed: cs[0],
+          health: Number(cs[1]) / 1e18,
         });
       })
       .catch((e) => !dead && setError(shortError(e)));

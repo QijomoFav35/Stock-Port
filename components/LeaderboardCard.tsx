@@ -24,15 +24,10 @@ export default function LeaderboardCard() {
   }, []);
 
   return (
-    <div className="card pad" style={{ padding: 32 }}>
+    <div className="card pad">
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 12, flexWrap: "wrap" }}>
-        <div>
-          <div className="eyebrow">Basket race</div>
-          <div className="disp" style={{ fontSize: 30, marginTop: 8 }}>
-            Who&apos;s <em>winning</em> this week
-          </div>
-        </div>
-        <div style={{ fontSize: 13, color: "var(--g60)" }}>From Chainlink NAV, onchain. Past results don&apos;t predict future ones.</div>
+        <div className="eyebrow">Leaderboard · 1 day and 7 days</div>
+        <div style={{ fontSize: 13, color: "var(--g60)" }}>Past results don&apos;t predict future ones.</div>
       </div>
 
       {!lb && !err && <p className="muted" style={{ marginTop: 20 }}>Reading NAV history from Base…</p>}

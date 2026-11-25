@@ -78,7 +78,7 @@ export default function BorrowCard({ geoBlocked, initial = "NVDAc" }: { geoBlock
 
   if (geoBlocked) {
     return (
-      <section className="card pad" style={{ padding: 32 }} id="borrow">
+      <section className="card pad">
         <div className="eyebrow">Borrow</div>
         <p className="muted" style={{ marginTop: 12 }}>Borrowing isn&apos;t available in your region.</p>
       </section>
@@ -86,9 +86,9 @@ export default function BorrowCard({ geoBlocked, initial = "NVDAc" }: { geoBlock
   }
 
   return (
-    <section className="card pad" style={{ padding: 32, scrollMarginTop: 80 }} id="borrow">
-      <div className="eyebrow">Gate A1 · Borrow · Aave V4 on Base</div>
-      <div className="disp" style={{ fontSize: 30, marginTop: 8 }}>
+    <section className="card pad">
+      <div className="eyebrow">Aave V4 on Base</div>
+      <div className="disp card-title">
         Get USDC. <em>Keep the stock.</em>
       </div>
       <p className="muted" style={{ fontSize: 14, marginTop: 8 }}>
@@ -119,7 +119,7 @@ export default function BorrowCard({ geoBlocked, initial = "NVDAc" }: { geoBlock
           );
         })}
       </div>
-      {b.loadError && <p style={{ marginTop: 16, color: "var(--red)", fontSize: 14 }}>Couldn&apos;t read Aave: {b.loadError}</p>}
+      {b.loadError && <p className="err" style={{ marginTop: 16 }}>Couldn&apos;t read Aave: {b.loadError}</p>}
 
       {row && preview && b.acct && (
         <>
@@ -130,7 +130,9 @@ export default function BorrowCard({ geoBlocked, initial = "NVDAc" }: { geoBlock
             </div>
             <div className="rule">
               <span>Borrow power</span>
-              <span className="num">{Math.round(cf * 100)}% of its value</span>
+              <span>
+                <span className="num">{Math.round(cf * 100)}%</span> of its value
+              </span>
             </div>
             {address && (
               <>
@@ -230,7 +232,7 @@ export default function BorrowCard({ geoBlocked, initial = "NVDAc" }: { geoBlock
               ))}
             </div>
           )}
-          {b.error && <p style={{ fontSize: 14, color: "var(--red)", marginTop: 12 }}>{b.error}</p>}
+          {b.error && <p className="err">{b.error}</p>}
           <p style={{ fontSize: 12, color: "var(--g60)", marginTop: 14 }}>
             Self-custody: your stock sits in{" "}
             <a href={basescanAddress(AAVE_SPOKE)} target="_blank" rel="noreferrer">

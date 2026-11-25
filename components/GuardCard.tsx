@@ -3,14 +3,23 @@ import { useEffect, useState } from "react";
 import { useAccount, useWalletClient } from "wagmi";
 import { formatUnits, parseUnits } from "viem";
 import ConnectButton from "@/components/ConnectButton";
-import { useLoanGuard } from "@/hooks/useLoanGuard";
-import { GUARD_PREVIEW, LOAN_GUARD } from "@/lib/loanGuard";
-import type { GuardState } from "@/hooks/useLoanGuard";
-import { basescanAddress } from "@/lib/txGuard";
 import GuardLog from "@/components/GuardLog";
+import { useLoanGuard, type GuardState } from "@/hooks/useLoanGuard";
+import { GUARD_PREVIEW, LOAN_GUARD } from "@/lib/loanGuard";
+import { basescanAddress } from "@/lib/txGuard";
 
 const usd = (raw: bigint) => "$" + Number(formatUnits(raw, 6)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const num = (v: string) => (Number.isFinite(Number(v)) ? Number(v) : NaN);
+const num = (v: string) => (v.trim() && Number.isFinite(Number(v)) ? Number(v) : NaN);
+/** How far collateral can fall before liquidation at a given health factor (debt held constant). */
+const cushion = (hf: number) => Math.round((1 - 1 / hf) * 100);
+
+type Preset = { id: string; name: string; trigger: number; target: number; weekend: number };
+const PRESETS: Preset[] = [
+  { id: "relaxed", name: "Relaxed", trigger: 1.1, target: 1.25, weekend: 1.2 },
+  { id: "balanced", name: "Balanced", trigger: 1.15, target: 1.4, weekend: 1.3 },
+  { id: "tight", name: "Tight", trigger: 1.25, target: 1.6, weekend: 1.45 },
+];
+const presetFor = (t: number, tg: number, w: number) => PRESETS.find((p) => p.trigger === t && p.target === tg && p.weekend === w)?.id;
 
 const SAMPLE: GuardState = {
   reserve: 250_000_000n,
@@ -20,24 +29,28 @@ const SAMPLE: GuardState = {
   lastProtect: Math.floor(Date.now() / 1000) - 3 * 86400,
   giverApproved: true,
   needed: false,
+  health: 1.62,
 };
 
-/** Gate B1: Loan Guard. A USDC reserve that repays your Aave loan before liquidation. */
+/** Gate A2: Loan Guard. A USDC reserve that repays your Aave loan before liquidation. */
 export default function GuardCard() {
   const { address } = useAccount();
   const { data: walletClient } = useWalletClient();
   const live = useLoanGuard(walletClient, address);
   const [previewNote, setPreviewNote] = useState(false);
-  const g = GUARD_PREVIEW
+  // Preview mode: same shape as the live hook, sample state, and buttons that only show a note.
+  const g: typeof live = GUARD_PREVIEW
     ? {
         ...live,
         deployed: true,
         builderCodeConfigured: true,
         state: SAMPLE,
-        arm: () => setPreviewNote(true),
-        withdrawReserve: () => setPreviewNote(true),
+        arm: async () => setPreviewNote(true),
+        withdrawReserve: async () => setPreviewNote(true),
       }
     : live;
+  const [preset, setPreset] = useState<string | undefined>("balanced");
+  const [advanced, setAdvanced] = useState(false);
   const [trigger, setTrigger] = useState("1.15");
   const [target, setTarget] = useState("1.40");
   const [weekend, setWeekend] = useState("1.30");
@@ -45,12 +58,25 @@ export default function GuardCard() {
   const busy = g.status === "confirming" || g.status === "pending";
 
   useEffect(() => {
-    if (g.state && g.state.trigger > 0) {
-      setTrigger(g.state.trigger.toFixed(2));
-      setTarget(g.state.target.toFixed(2));
-      setWeekend(g.state.weekendTrigger ? g.state.weekendTrigger.toFixed(2) : "");
+    const s = g.state;
+    if (s && s.trigger > 0) {
+      setTrigger(s.trigger.toFixed(2));
+      setTarget(s.target.toFixed(2));
+      setWeekend(s.weekendTrigger ? s.weekendTrigger.toFixed(2) : "");
+      const id = presetFor(s.trigger, s.target, s.weekendTrigger);
+      setPreset(id);
+      if (!id) setAdvanced(true);
     }
-  }, [g.state]);
+    // Only re-sync when the onchain settings change, not on every render of the preview object.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [g.state?.trigger, g.state?.target, g.state?.weekendTrigger]);
+
+  const pick = (p: Preset) => {
+    setPreset(p.id);
+    setTrigger(p.trigger.toFixed(2));
+    setTarget(p.target.toFixed(2));
+    setWeekend(p.weekend.toFixed(2));
+  };
 
   let fundRaw = 0n;
   try {
@@ -63,47 +89,45 @@ export default function GuardCard() {
   const w = weekend.trim() ? num(weekend) : 0;
   const valid = t >= 1.02 && tg > t && tg <= 3 && (w === 0 || (w >= t && w < tg)) && fundRaw >= 0n;
   const armed = !!g.state && g.state.trigger > 0;
+  const health = g.state?.health;
+  const hasDebt = health !== undefined && health > 0 && health < 100;
 
   return (
-    <section className="card pad" style={{ padding: 32, scrollMarginTop: 80 }} id="guard">
-      <div className="eyebrow">Gate B1 · Loan Guard</div>
-      <div className="disp" style={{ fontSize: 30, marginTop: 8 }}>
-        Never get <em>liquidated</em> in your sleep.
-      </div>
-      <p className="muted" style={{ fontSize: 14, marginTop: 8 }}>
-        Park a USDC reserve. If your Aave health drops under your trigger, the guard repays just enough to get you back to your target. Stock
-        prices freeze on weekends, so a higher weekend trigger tops you up before the Monday open. It can only repay your loan or send your
-        reserve back to you. It can never touch your stocks.
-      </p>
+    <section className="card pad">
+      <div className="eyebrow">Loan Guard · agent</div>
+      <GuardLog />
 
+      <div className="eyebrow" style={{ marginTop: 28 }}>
+        Your guard
+      </div>
       {!g.deployed ? (
-        <p style={{ marginTop: 16, fontSize: 14, color: "var(--g60)" }}>Launching soon. The contract is being deployed on Base.</p>
+        <p className="muted" style={{ marginTop: 10, fontSize: 14 }}>
+          Launching soon. The contract is being deployed on Base.
+        </p>
       ) : !address && !GUARD_PREVIEW ? (
-        <div style={{ marginTop: 16 }}>
+        <div style={{ marginTop: 12 }}>
           <ConnectButton full />
         </div>
       ) : (
         <>
           {g.state && (
-            <div className="soft" style={{ padding: 18, borderRadius: 18, marginTop: 16, display: "grid", gap: 8, fontSize: 14 }}>
+            <div className="soft" style={{ padding: 18, borderRadius: 18, marginTop: 12, display: "grid", gap: 8, fontSize: 14 }}>
               <div className="rule">
                 <span>Status</span>
-                <span className="num" style={{ fontWeight: 600 }}>
-                  {armed ? (g.state.needed ? "Acting now" : "Armed") : "Off"}
-                </span>
+                <span style={{ fontWeight: 600 }}>{armed ? (g.state.needed ? "Acting now" : "Armed") : "Off"}</span>
               </div>
+              {hasDebt && health !== undefined && (
+                <div className="rule">
+                  <span>Your loan now</span>
+                  <span>
+                    Health <span className="num">{health.toFixed(2)}</span> · a <span className="num">{cushion(health)}%</span> drop liquidates
+                  </span>
+                </div>
+              )}
               <div className="rule">
                 <span>Reserve</span>
                 <span className="num">{usd(g.state.reserve)}</span>
               </div>
-              {armed && (
-                <div className="rule">
-                  <span>Trigger · target · weekend</span>
-                  <span className="num">
-                    {g.state.trigger.toFixed(2)} · {g.state.target.toFixed(2)} · {g.state.weekendTrigger ? g.state.weekendTrigger.toFixed(2) : "same"}
-                  </span>
-                </div>
-              )}
               {g.state.lastProtect > 0 && (
                 <div className="rule">
                   <span>Last top-up</span>
@@ -113,28 +137,94 @@ export default function GuardCard() {
             </div>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 16 }}>
-            <label style={{ fontSize: 13, color: "var(--g60)" }}>
-              Trigger
-              <input className="input num" inputMode="decimal" value={trigger} onChange={(e) => setTrigger(e.target.value)} disabled={busy} />
-            </label>
-            <label style={{ fontSize: 13, color: "var(--g60)" }}>
-              Target
-              <input className="input num" inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} disabled={busy} />
-            </label>
-            <label style={{ fontSize: 13, color: "var(--g60)" }}>
-              Weekend
-              <input className="input num" inputMode="decimal" placeholder="off" value={weekend} onChange={(e) => setWeekend(e.target.value)} disabled={busy} />
-            </label>
+          <div style={{ fontSize: 14, fontWeight: 600, marginTop: 18 }}>How early should it step in?</div>
+          <div className="presets" role="radiogroup" aria-label="Loan Guard setting">
+            {PRESETS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                role="radio"
+                aria-checked={preset === p.id}
+                className={`preset${preset === p.id ? " on" : ""}`}
+                disabled={busy}
+                onClick={() => pick(p)}
+              >
+                <span className="preset-name">{p.name}</span>
+                <span className="preset-body">
+                  Steps in when a {cushion(p.trigger)}% drop would liquidate you. Repays until it would take {cushion(p.target)}%.
+                </span>
+              </button>
+            ))}
           </div>
-          <label style={{ fontSize: 13, color: "var(--g60)", display: "block", marginTop: 10 }}>
+          {Number.isFinite(t) && Number.isFinite(tg) && (
+            <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
+              {w > 0
+                ? `From Friday 20:00 to Sunday 23:00 UTC it steps in earlier, at a ${cushion(w)}% cushion, because stock prices can gap when markets reopen.`
+                : "No separate weekend setting."}
+            </p>
+          )}
+
+          <button type="button" className="linkish" style={{ marginTop: 6, fontSize: 13 }} onClick={() => setAdvanced((a) => !a)} aria-expanded={advanced}>
+            {advanced ? "Hide advanced" : "Advanced: set health factors yourself"}
+          </button>
+          {advanced && (
+            <div className="grid-3" style={{ marginTop: 10 }}>
+              <label className="field">
+                Trigger
+                <input
+                  className="input num"
+                  inputMode="decimal"
+                  value={trigger}
+                  onChange={(e) => {
+                    setTrigger(e.target.value);
+                    setPreset(undefined);
+                  }}
+                  disabled={busy}
+                />
+              </label>
+              <label className="field">
+                Target
+                <input
+                  className="input num"
+                  inputMode="decimal"
+                  value={target}
+                  onChange={(e) => {
+                    setTarget(e.target.value);
+                    setPreset(undefined);
+                  }}
+                  disabled={busy}
+                />
+              </label>
+              <label className="field">
+                Weekend
+                <input
+                  className="input num"
+                  inputMode="decimal"
+                  placeholder="off"
+                  value={weekend}
+                  onChange={(e) => {
+                    setWeekend(e.target.value);
+                    setPreset(undefined);
+                  }}
+                  disabled={busy}
+                />
+              </label>
+            </div>
+          )}
+
+          <label className="field" style={{ display: "block", marginTop: 14 }}>
             Add USDC to the reserve
             <input className="input num" inputMode="decimal" placeholder="0" value={fund} onChange={(e) => setFund(e.target.value)} disabled={busy} />
           </label>
-          {!valid && <p style={{ fontSize: 13, color: "var(--red)", marginTop: 8 }}>Trigger must be at least 1.02, target above trigger (max 3), weekend between them.</p>}
+          {!valid && <p className="err">Trigger must be at least 1.02, target above trigger (max 3), weekend between them.</p>}
 
           <div style={{ display: "grid", gap: 8, marginTop: 14 }}>
-            <button className="btn btn-blue" style={{ width: "100%", height: 54, fontSize: 16 }} disabled={!valid || busy || !g.builderCodeConfigured} onClick={() => g.arm(t, tg, w, fundRaw)}>
+            <button
+              className="btn btn-blue"
+              style={{ width: "100%", height: 54, fontSize: 16 }}
+              disabled={!valid || busy || !g.builderCodeConfigured}
+              onClick={() => g.arm(t, tg, w, fundRaw)}
+            >
               {busy ? g.step ?? "Working…" : armed ? "Update guard" : "Turn on Loan Guard"}
             </button>
             {g.state && g.state.reserve > 0n && (
@@ -143,6 +233,11 @@ export default function GuardCard() {
               </button>
             )}
           </div>
+          {previewNote && (
+            <p className="muted" style={{ fontSize: 14, marginTop: 12 }}>
+              Preview mode: nothing was sent. This button opens your wallet once the contract is live.
+            </p>
+          )}
           {g.status === "success" && (
             <div style={{ marginTop: 12, fontSize: 14 }}>
               Done.{" "}
@@ -153,20 +248,22 @@ export default function GuardCard() {
               ))}
             </div>
           )}
-          {previewNote && <p style={{ fontSize: 14, color: "var(--g60)", marginTop: 12 }}>Preview mode: nothing was sent. This button opens your wallet once the contract is live.</p>}
-          {g.error && <p style={{ fontSize: 14, color: "var(--red)", marginTop: 12 }}>{g.error}</p>}
-          {LOAN_GUARD && (
-            <p style={{ fontSize: 12, color: "var(--g60)", marginTop: 14 }}>
-              Open source, no owner, no admin key, not upgradeable:{" "}
-              <a href={basescanAddress(LOAN_GUARD)} target="_blank" rel="noreferrer">
-                LoanGuard on Basescan
-              </a>
-              . Anyone can trigger it, so it keeps working even if Stock Port goes down.
-            </p>
-          )}
+          {g.error && <p className="err">{g.error}</p>}
         </>
       )}
-      <GuardLog />
+      <p style={{ fontSize: 12, color: "var(--g60)", marginTop: 16 }}>
+        It can only repay your loan or send your reserve back to you. It never touches your stocks. No owner, no admin key, not upgradeable, and
+        anyone can trigger it, so it keeps working even if Stock Port goes down.
+        {LOAN_GUARD && (
+          <>
+            {" "}
+            <a href={basescanAddress(LOAN_GUARD)} target="_blank" rel="noreferrer">
+              View the contract on Basescan
+            </a>
+            .
+          </>
+        )}
+      </p>
     </section>
   );
 }

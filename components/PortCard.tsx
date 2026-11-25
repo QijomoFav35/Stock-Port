@@ -38,7 +38,7 @@ export default function PortCard({ geoBlocked, basket }: { geoBlocked: boolean; 
 
   if (geoBlocked) {
     return (
-      <section className="card pad" style={{ padding: 36, background: "var(--raised)" }}>
+      <section className="card pad" style={{ background: "var(--raised)" }}>
         <div className="eyebrow">Buy the basket</div>
         <p style={{ marginTop: 12, fontWeight: 600 }}>Trading isn&apos;t available in your region.</p>
         <p className="muted" style={{ fontSize: 14 }}>
@@ -51,7 +51,7 @@ export default function PortCard({ geoBlocked, basket }: { geoBlocked: boolean; 
   if (result) {
     const spent = Number(result.quote.totalUsdc) / 1e6;
     return (
-      <section className="card pad" style={{ padding: 36, textAlign: "center" }}>
+      <section className="card pad" style={{ textAlign: "center" }}>
         <div
           style={{
             width: 88,
@@ -87,7 +87,7 @@ export default function PortCard({ geoBlocked, basket }: { geoBlocked: boolean; 
   }
 
   return (
-    <section id="port" className="card pad" style={{ padding: 36 }}>
+    <section id="port" className="card pad">
       <div className="eyebrow">Buy {basket.name}</div>
       <label
         style={{
@@ -156,7 +156,7 @@ export default function PortCard({ geoBlocked, basket }: { geoBlocked: boolean; 
       </label>
 
       {!builderCodeConfigured && (
-        <p style={{ fontSize: 14, color: "var(--red)" }}>Builder Code missing (NEXT_PUBLIC_BASE_BUILDER_CODE). Sending disabled.</p>
+        <p className="err">Builder Code missing (NEXT_PUBLIC_BASE_BUILDER_CODE). Sending disabled.</p>
       )}
 
       <div style={{ marginTop: 12 }}>
@@ -181,7 +181,7 @@ export default function PortCard({ geoBlocked, basket }: { geoBlocked: boolean; 
         )}
       </div>
 
-      {error && <p style={{ fontSize: 14, color: "var(--red)", marginTop: 12 }}>{error}</p>}
+      {error && <p className="err">{error}</p>}
       <SafetyNote />
     </section>
   );

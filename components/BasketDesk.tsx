@@ -89,7 +89,7 @@ export default function BasketDesk({
           alignItems: "start",
         }}
       >
-        <div className="card pad" style={{ padding: 32 }}>
+        <div className="card pad">
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <span style={{ width: 14, height: 14, borderRadius: 7, background: basket.color, flex: "none" }} />
             <div className="eyebrow">Basket · {basket.legs.length} stocks</div>

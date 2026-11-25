@@ -19,7 +19,7 @@ function StatusText({ s }: { s?: TokenStatus }) {
   if (s.state === "waiting") return <span style={{ color: "var(--g60)" }}>Queued</span>;
   if (s.state === "swapping") return <span style={{ color: "var(--blue)" }}>Swapping…</span>;
   if (s.state === "done") return <span style={{ color: "var(--green)" }}>Swapped</span>;
-  return <span style={{ color: "var(--red)" }}>{s.reason}</span>;
+  return <span className="err-inline">{s.reason}</span>;
 }
 
 const card: CSSProperties = { padding: 0, overflow: "hidden" };
@@ -61,14 +61,14 @@ export default function DustCard({ geoBlocked }: { geoBlocked: boolean }) {
 
   if (geoBlocked) {
     return (
-      <section className="card pad" style={{ padding: 36, maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
+      <section className="card pad" style={{ maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
         <p style={{ fontWeight: 600 }}>Trading isn&apos;t available in your region.</p>
       </section>
     );
   }
   if (!address) {
     return (
-      <section className="card pad" style={{ padding: 36, maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
+      <section className="card pad" style={{ maxWidth: 560, margin: "0 auto", textAlign: "center" }}>
         <span style={{ color: "var(--yellow)" }}>
           <Icon name="ph-broom" size={36} />
         </span>
@@ -175,7 +175,7 @@ export default function DustCard({ geoBlocked }: { geoBlocked: boolean }) {
       </section>
 
       <div style={{ display: "grid", gap: 24 }}>
-        <section className="card pad" style={{ padding: 32 }}>
+        <section className="card pad">
           <div className="eyebrow">Selected</div>
           <div className="num" style={{ fontSize: 56, lineHeight: 1, marginTop: 10 }}>
             {usd(total)}
@@ -226,7 +226,7 @@ export default function DustCard({ geoBlocked }: { geoBlocked: boolean }) {
           </label>
 
           {!builderCodeConfigured && (
-            <p style={{ fontSize: 14, color: "var(--red)" }}>Builder Code missing (NEXT_PUBLIC_BASE_BUILDER_CODE). Sending disabled.</p>
+            <p className="err">Builder Code missing (NEXT_PUBLIC_BASE_BUILDER_CODE). Sending disabled.</p>
           )}
 
           <button
@@ -239,7 +239,7 @@ export default function DustCard({ geoBlocked }: { geoBlocked: boolean }) {
           </button>
           {!attest && <div style={{ textAlign: "center", fontSize: 13, color: "var(--g60)", marginTop: 8 }}>Tick the box above to continue</div>}
 
-          {dust.error && <p style={{ fontSize: 14, color: "var(--red)", marginTop: 12 }}>{dust.error}</p>}
+          {dust.error && <p className="err">{dust.error}</p>}
           <SafetyNote />
         </section>
 

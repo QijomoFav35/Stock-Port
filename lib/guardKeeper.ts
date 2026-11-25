@@ -16,8 +16,9 @@ export type KeeperEntry = { at: number; user: Address; health: number; trigger: 
 export type KeeperRun = { at: number; checked: number; atRisk: number; protected: number; entries: KeeperEntry[] };
 
 const LOG_MAX = 50;
-const g = globalThis as unknown as { __guardLog?: KeeperRun[] };
+const g = globalThis as unknown as { __guardLog?: KeeperRun[]; __guardRunning?: boolean };
 export const keeperLog = () => (g.__guardLog ??= []);
+export class KeeperBusyError extends Error {}
 
 export async function listGuardedUsers(): Promise<Address[]> {
   if (!LOAN_GUARD) return [];
@@ -30,12 +31,23 @@ export async function listGuardedUsers(): Promise<Address[]> {
   return res as unknown as Address[];
 }
 
+/** One pass at a time: overlapping cron calls would otherwise send the same top-up twice (the second reverts, wasting gas). */
 export async function runKeeper(): Promise<KeeperRun> {
   if (!LOAN_GUARD) throw new Error("NEXT_PUBLIC_LOAN_GUARD_ADDRESS is not set");
+  if (g.__guardRunning) throw new KeeperBusyError("A keeper pass is already running");
+  g.__guardRunning = true;
+  try {
+    return await keeperPass(LOAN_GUARD);
+  } finally {
+    g.__guardRunning = false;
+  }
+}
+
+async function keeperPass(guard: Address): Promise<KeeperRun> {
   const users = await listGuardedUsers();
   const checks = await publicClient.multicall({
     allowFailure: true,
-    contracts: users.map((u) => ({ address: LOAN_GUARD!, abi: loanGuardAbi, functionName: "check", args: [u] }) as const),
+    contracts: users.map((u) => ({ address: guard, abi: loanGuardAbi, functionName: "check", args: [u] }) as const),
   });
   const run: KeeperRun = { at: Date.now(), checked: users.length, atRisk: 0, protected: 0, entries: [] };
   const pk = process.env.KEEPER_PRIVATE_KEY as `0x${string}` | undefined;
@@ -52,7 +64,7 @@ export async function runKeeper(): Promise<KeeperRun> {
     } else {
       try {
         const data = encodeFunctionData({ abi: loanGuardAbi, functionName: "protect", args: [users[i]] });
-        const hash = await wallet.sendTransaction({ to: LOAN_GUARD, data: DATA_SUFFIX ? withBuilderCode(data) : data });
+        const hash = await wallet.sendTransaction({ to: guard, data: DATA_SUFFIX ? withBuilderCode(data) : data });
         const r = await publicClient.waitForTransactionReceipt({ hash });
         entry.tx = hash;
         if (r.status === "success") run.protected++;

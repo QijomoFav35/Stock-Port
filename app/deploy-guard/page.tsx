@@ -49,7 +49,7 @@ export default function DeployGuard() {
         {!address ? (
           <ConnectButton full />
         ) : chainId !== base.id ? (
-          <p style={{ color: "var(--red)" }}>Switch your wallet to Base.</p>
+          <p className="err">Switch your wallet to Base.</p>
         ) : (
           <button className="btn btn-blue" style={{ width: "100%", height: 54 }} disabled={busy} onClick={deploy}>
             {busy ? "Working…" : "Deploy to Base"}

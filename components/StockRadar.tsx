@@ -22,10 +22,10 @@ export default function StockRadar({ all, basket, peg }: { all: TokenizedStock[]
   const pegBy = new Map(peg.map((p) => [p.symbol.toLowerCase(), p]));
   return (
     <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-      <div style={{ padding: "28px 28px 18px", display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "end" }}>
+      <div style={{ padding: "32px 32px 18px", display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "end" }}>
         <div>
           <div className="eyebrow">Stock radar</div>
-          <div className="disp" style={{ fontSize: 28, marginTop: 6 }}>
+          <div className="disp card-title">
             Live-priced stocks <em>on Base.</em>
           </div>
         </div>

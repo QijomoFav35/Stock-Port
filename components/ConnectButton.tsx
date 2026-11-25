@@ -97,7 +97,7 @@ export default function ConnectButton({ className = "", full = false }: { classN
           </p>
         </div>
       )}
-      {error && <p style={{ marginTop: 6, fontSize: 12, color: "var(--red)" }}>{error.message.split("\n")[0]}</p>}
+      {error && <p className="err" style={{ marginTop: 6, fontSize: 12 }}>{error.message.split("\n")[0]}</p>}
     </div>
   );
 }

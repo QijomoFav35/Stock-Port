@@ -19,9 +19,9 @@ const RULES: { icon: IconName; title: string; body: string; live: boolean }[] = 
 
 export default function Guardrails() {
   return (
-    <div className="card pad" style={{ padding: 36 }}>
+    <div className="card pad">
       <div className="eyebrow">Agent guardrails</div>
-      <div className="disp" style={{ fontSize: 28, lineHeight: 1.2, marginTop: 14 }}>
+      <div className="disp card-title">
         Hard rules, <em>enforced in code.</em>
       </div>
       <div style={{ display: "grid", gap: 14, marginTop: 24 }}>
