@@ -25,8 +25,8 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Stock Port · Borrow against your stocks. Never sell.",
-  description: "Get USDC against tokenized Nvidia, Apple, Alphabet, Meta or SpaceX on Base in one tx, through Morpho. Self-custody.",
+  title: "Stock Port · Your port of entry to onchain stocks",
+  description: "Buy, borrow, rotate and sweep tokenized stocks on Base from one terminal. Every move in one tx. Self-custody.",
 };
 
 export default function RootLayout({

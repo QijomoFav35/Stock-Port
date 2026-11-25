@@ -470,3 +470,80 @@ input[type="checkbox"] {
   font: inherit;
   font-size: 13px;
 }
+
+/* Departures board (home gates) */
+.board {
+  background: #0A0B0D;
+  color: #fff;
+  border-radius: 24px;
+  padding: 10px 0;
+  box-shadow: 0 24px 60px rgba(10, 11, 13, 0.18);
+  overflow: hidden;
+}
+.board-head,
+.board-row {
+  display: grid;
+  grid-template-columns: 56px minmax(140px, 200px) 1fr 110px;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 24px;
+}
+.board-head {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8A919E;
+}
+.board-row {
+  color: #fff;
+  text-decoration: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  transition: background 0.15s;
+}
+.board-row:hover {
+  background: rgba(0, 0, 255, 0.35);
+}
+.board-gate {
+  color: #FFD12F;
+  font-weight: 600;
+}
+.board-flap {
+  display: inline-flex;
+  gap: 2px;
+}
+.flap {
+  display: inline-block;
+  min-width: 0.78em;
+  text-align: center;
+  padding: 2px 1px;
+  border-radius: 3px;
+  background: #1E2025;
+  font-weight: 600;
+  animation: flap 0.5s ease-out both;
+}
+@keyframes flap {
+  0% { transform: rotateX(90deg); opacity: 0; }
+  100% { transform: rotateX(0); opacity: 1; }
+}
+.board-what {
+  color: #B1B7C3;
+  font-size: 15px;
+}
+.board-status {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+@media (max-width: 640px) {
+  .board-head,
+  .board-row {
+    grid-template-columns: 40px 1fr 86px;
+    padding: 12px 16px;
+  }
+  .board-what { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flap { animation: none; }
+}

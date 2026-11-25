@@ -21,7 +21,8 @@ export function LogoMark({ size = 30, inverted = false }: { size?: number; inver
 
 const LINKS = [
   { href: "/#borrow", label: "Borrow" },
-  { href: "/#buy", label: "Baskets" },
+  { href: "/#buy", label: "Buy" },
+  { href: "/?mode=rotate#buy", label: "Rotate" },
   { href: "/dust", label: "Sweep" },
   { href: "/next", label: "What's next" },
 ];

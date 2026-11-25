@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PortCard from "@/components/PortCard";
 import RotateCard from "@/components/RotateCard";
 import PegChip from "@/components/PegChip";
@@ -42,6 +42,10 @@ export default function BasketDesk({
 }) {
   const [id, setId] = useState(initialId);
   const [mode, setMode] = useState<"buy" | "rotate">("buy");
+  // The Rotate gate on the home board links here with ?mode=rotate.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("mode") === "rotate") setMode("rotate");
+  }, []);
   const basket = baskets.find((b) => b.id === id) ?? baskets[0];
   const pick = (next: string) => {
     setId(next);

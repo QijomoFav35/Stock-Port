@@ -9,6 +9,7 @@ import Guardrails from "@/components/Guardrails";
 import StockRadar from "@/components/StockRadar";
 import LeaderboardCard from "@/components/LeaderboardCard";
 import BorrowCard from "@/components/BorrowCard";
+import GatesBoard from "@/components/GatesBoard";
 import Icon from "@/components/Icon";
 import type { IconName } from "@/lib/icons";
 import type { ReactNode } from "react";
@@ -71,7 +72,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   tickerItems.push(
     <span key="tag" className="mq-i">
       <Icon name="ph-sparkle" size={18} />
-      Borrow against your stocks. Never sell.
+      Stock Port · your port of entry to onchain stocks
     </span>,
   );
   const infoItems = [
@@ -123,21 +124,21 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             }}
           >
             <span className="live" />
-            Stock-backed loans <Icon name="net-base" size={14} /> on Base
+            Now boarding <Icon name="net-base" size={14} /> on Base
           </div>
           <h1 className="disp r2" style={{ fontSize: "clamp(46px,7.4vw,84px)", lineHeight: 1.02, margin: "22px 0 0" }}>
-            Borrow against your stocks. <em>Never sell.</em>
+            Your port of entry to <em>onchain stocks.</em>
           </h1>
           <p className="r3 muted" style={{ maxWidth: 620, margin: "22px auto 0", fontSize: 19 }}>
-            Get USDC against tokenized Nvidia, Apple, Alphabet, Meta or SpaceX in one tx, through Morpho on Base. You keep
-            the upside, see your liquidation price live, and stay in self-custody.
+            Like an airport, but for stocks. Buy, borrow, rotate and sweep tokenized stocks from one terminal on Base.
+            Open 24/7, every move in one tx, self-custody all the way.
           </p>
           <div className="r4" style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 34, flexWrap: "wrap" }}>
-            <a href="#borrow" className="btn btn-blue">
-              Borrow against your stocks
+            <a href="#gates" className="btn btn-blue">
+              See all gates
             </a>
-            <a href="#buy" className="btn btn-ghost">
-              Buy stocks from $5
+            <a href="#borrow" className="btn btn-ghost">
+              Borrow against your stocks
             </a>
           </div>
           <div
@@ -179,6 +180,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           </div>
         </header>
 
+        <section id="gates" className="wrap" style={{ position: "relative", paddingBottom: 56, scrollMarginTop: 80 }}>
+          <GatesBoard />
+        </section>
       </div>
 
       <div className="mq" role="marquee" aria-label="Basket tokens and how Stock Port works">
@@ -266,7 +270,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </div>
       </section>
 
-      <section className="wrap" style={{ paddingTop: 40, paddingBottom: 0 }}>
+      <section id="race" className="wrap" style={{ paddingTop: 40, paddingBottom: 0, scrollMarginTop: 80 }}>
         <LeaderboardCard />
       </section>
 
