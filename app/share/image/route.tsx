@@ -23,12 +23,12 @@ export async function GET(req: NextRequest) {
   const headline = rotated
     ? `Rotated out of ${from!.name} into ${basket!.name}.`
     : !data
-      ? "Own what the AI owns."
+      ? "Borrow against your stocks. Never sell."
       : dust
         ? `Swept ${usd} of dust into ${basket ? basket.name : "tokenized stocks"}.`
         : basket
           ? `Copied ${basket.name}: ${usd} in tokenized stocks.`
-          : `Copied the AI's bag: ${usd} into tokenized stocks.`;
+          : `Bought ${usd} of tokenized stocks.`;
 
   return new ImageResponse(
     (

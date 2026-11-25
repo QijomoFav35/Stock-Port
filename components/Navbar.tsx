@@ -20,8 +20,10 @@ export function LogoMark({ size = 30, inverted = false }: { size?: number; inver
 }
 
 const LINKS = [
-  { href: "/", label: "Agent" },
+  { href: "/#borrow", label: "Borrow" },
+  { href: "/#buy", label: "Baskets" },
   { href: "/dust", label: "Sweep" },
+  { href: "/next", label: "What's next" },
 ];
 
 export default function Navbar() {

@@ -8,6 +8,7 @@ import BasketDesk, { type StockInfo } from "@/components/BasketDesk";
 import Guardrails from "@/components/Guardrails";
 import StockRadar from "@/components/StockRadar";
 import LeaderboardCard from "@/components/LeaderboardCard";
+import BorrowCard from "@/components/BorrowCard";
 import Icon from "@/components/Icon";
 import type { IconName } from "@/lib/icons";
 import type { ReactNode } from "react";
@@ -70,7 +71,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   tickerItems.push(
     <span key="tag" className="mq-i">
       <Icon name="ph-sparkle" size={18} />
-      Own what the AI owns
+      Borrow against your stocks. Never sell.
     </span>,
   );
   const infoItems = [
@@ -79,12 +80,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
       Exact approvals, never infinite
     </span>,
     <span key="b" className="mq-i">
-      <Icon name="ph-lightning" size={20} />
-      Routed via o1 Exchange
+      <Icon name="ph-shield-check" size={20} />
+      Live health and liquidation price on every loan
     </span>,
     <span key="c" className="mq-i">
-      <Icon name="ph-broom" size={20} />
-      Sweep your dust into stocks
+      <Icon name="ph-lightning" size={20} />
+      Deposit and borrow in one tx
     </span>,
     <span key="d" className="mq-i">
       <Icon name="ph-wallet" size={20} />
@@ -122,22 +123,21 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             }}
           >
             <span className="live" />
-            Tokenized stocks <Icon name="net-base" size={14} /> on Base
+            Stock-backed loans <Icon name="net-base" size={14} /> on Base
           </div>
           <h1 className="disp r2" style={{ fontSize: "clamp(46px,7.4vw,84px)", lineHeight: 1.02, margin: "22px 0 0" }}>
-            Own what the AI <em>owns.</em>
+            Borrow against your stocks. <em>Never sell.</em>
           </h1>
           <p className="r3 muted" style={{ maxWidth: 620, margin: "22px auto 0", fontSize: 19 }}>
-            Themed baskets of tokenized stocks on Base: Mag 7, AI Bubble, Pre-IPO and more. Buy one from $5 in one tx,
-            rotate between them anytime. Self-custody: the tokens land in your wallet.
+            Get USDC against tokenized Nvidia, Apple, Alphabet, Meta or SpaceX in one tx, through Morpho on Base. You keep
+            the upside, see your liquidation price live, and stay in self-custody.
           </p>
           <div className="r4" style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 34, flexWrap: "wrap" }}>
-            <a href="#buy" className="btn btn-blue">
-              Pick a basket from $5
+            <a href="#borrow" className="btn btn-blue">
+              Borrow against your stocks
             </a>
-            <a href="/dust" className="btn btn-ghost">
-              <Icon name="ph-broom" size={18} />
-              Sweep your dust
+            <a href="#buy" className="btn btn-ghost">
+              Buy stocks from $5
             </a>
           </div>
           <div
@@ -192,9 +192,15 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
         </div>
       </div>
 
+      <section className="wrap" style={{ paddingTop: 64, paddingBottom: 0, scrollMarginTop: 80 }}>
+        <div style={{ maxWidth: 640, margin: "0 auto", scrollMarginTop: 80 }}>
+          <BorrowCard geoBlocked={geoBlocked} />
+        </div>
+      </section>
+
       <section id="buy" className="wrap" style={{ paddingTop: 64, paddingBottom: 32, scrollMarginTop: 80 }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div className="eyebrow">Pick a theme</div>
+          <div className="eyebrow">No stocks yet? Buy a basket</div>
           <h2 className="disp" style={{ fontSize: "clamp(34px,4.6vw,52px)", lineHeight: 1.05, margin: "10px 0 0" }}>
             {BASKETS.length} baskets. <em>Rotate anytime.</em>
           </h2>
