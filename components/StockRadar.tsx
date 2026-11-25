@@ -26,7 +26,7 @@ export default function StockRadar({ all, basket, peg }: { all: TokenizedStock[]
         <div>
           <div className="eyebrow">Stock radar</div>
           <div className="disp card-title">
-            Live-priced stocks <em>on Base.</em>
+            Tokenized Stocks <em>with live NAV.</em>
           </div>
         </div>
         <div style={{ fontSize: 13, color: "var(--g60)", maxWidth: 360 }}>
@@ -77,7 +77,7 @@ export default function StockRadar({ all, basket, peg }: { all: TokenizedStock[]
                   {t.nav_price ? usd(t.nav_price) : "N/A"}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--g60)", marginTop: 2 }}>
-                  {held && t.nav_price ? <PegChip peg={pegBy.get(t.symbol.toLowerCase())} compact /> : t.nav_price ? (stale ? "NAV · stale" : "NAV") : "Price feed soon"}
+                  {held && t.nav_price ? <PegChip peg={pegBy.get(t.symbol.toLowerCase())} compact /> : t.nav_price ? (stale ? "NAV · stale" : "NAV") : "NAV feed soon"}
                 </div>
               </div>
             </div>

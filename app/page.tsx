@@ -74,7 +74,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
   tickerItems.push(
     <span key="tag" className="mq-i">
       <Icon name="ph-sparkle" size={18} />
-      Stock Port · your port of entry to onchain stocks
+      Stock Port · your port of entry to Tokenized Stocks
     </span>,
   );
   const infoItems = [
@@ -129,7 +129,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             Now boarding <Icon name="net-base" size={14} /> on Base
           </div>
           <h1 className="disp r2" style={{ fontSize: "clamp(46px,7.4vw,84px)", lineHeight: 1.02, margin: "22px 0 0" }}>
-            Your port of entry to <em>onchain stocks.</em>
+            Your port of entry to <em>Tokenized Stocks.</em>
           </h1>
           <p className="r3 muted" style={{ maxWidth: 620, margin: "22px auto 0", fontSize: 19 }}>
             Like an airport, but for stocks. Buy, borrow, rotate and sweep tokenized stocks from one terminal on Base.
@@ -207,7 +207,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
               Borrow against your stocks. <em>Never sell.</em>
             </>
           }
-          sub="USDC from Aave V4 on Base against 8 tokenized stocks. Your shares stay in the position, and you repay whenever you want."
+          sub="USDC from Aave V4 on Base against 8 tokenized stocks. Your tokenized stocks stay as collateral, and you repay whenever you want."
         />
         <div className="sec-narrow">
           <BorrowCard geoBlocked={geoBlocked} />
@@ -223,7 +223,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
               An agent that <em>watches your loan.</em>
             </>
           }
-          sub="Stocks can drop while you sleep, and stock prices freeze over the weekend. Loan Guard repays from your own USDC reserve before Aave can liquidate you."
+          sub="Stocks can dump while you sleep, and NAV goes stale when TradFi closes for the weekend. Loan Guard repays from your own USDC reserve before Aave can liquidate you."
         />
         <div className="sec-narrow">
           <GuardCard />

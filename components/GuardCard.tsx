@@ -159,7 +159,7 @@ export default function GuardCard() {
           {Number.isFinite(t) && Number.isFinite(tg) && (
             <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
               {w > 0
-                ? `From Friday 20:00 to Sunday 23:00 UTC it steps in earlier, at a ${cushion(w)}% cushion, because stock prices can gap when markets reopen.`
+                ? `From Friday 20:00 to Sunday 23:00 UTC it steps in earlier, at a ${cushion(w)}% cushion, because NAV can gap at the Monday open.`
                 : "No separate weekend setting."}
             </p>
           )}

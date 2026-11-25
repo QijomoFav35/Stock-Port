@@ -89,7 +89,7 @@ export default function BorrowCard({ geoBlocked, initial = "NVDAc" }: { geoBlock
     <section className="card pad">
       <div className="eyebrow">Aave V4 on Base</div>
       <div className="disp card-title">
-        Get USDC. <em>Keep the stock.</em>
+        Get USDC. <em>Keep your bags.</em>
       </div>
       <p className="muted" style={{ fontSize: 14, marginTop: 8 }}>
         {b.market ? (
@@ -125,14 +125,12 @@ export default function BorrowCard({ geoBlocked, initial = "NVDAc" }: { geoBlock
         <>
           <div className="soft" style={{ padding: 18, borderRadius: 18, marginTop: 16, display: "grid", gap: 8, fontSize: 14 }}>
             <div className="rule">
-              <span>{row.reserve.symbol} price (Chainlink)</span>
+              <span>{row.reserve.symbol} NAV (Chainlink)</span>
               <span className="num">{usdN(row.price)}</span>
             </div>
             <div className="rule">
-              <span>Borrow power</span>
-              <span>
-                <span className="num">{Math.round(cf * 100)}%</span> of its value
-              </span>
+              <span>Max LTV</span>
+              <span className="num">{Math.round(cf * 100)}%</span>
             </div>
             {address && (
               <>

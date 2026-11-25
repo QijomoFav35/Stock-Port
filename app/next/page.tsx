@@ -9,7 +9,7 @@ type Item = { tag: "Live" | "Next" | "Soon"; title: string; body: string };
 
 const ITEMS: Item[] = [
   { tag: "Live", title: "Borrow against your stocks", body: "Deposit NVDAc, AAPLc, MSFTc, GOOGLc, AMZNc, METAc, TSLAc or SPCXc and borrow USDC on Aave V4 in one tx. Live health and liquidation price." },
-  { tag: "Live", title: "Themed baskets and Rotate", body: "Buy Mag 7, AI Bubble, Elon Mode and more from $5, and rotate between them in one tx." },
+  { tag: "Live", title: "Themed baskets and Rotate", body: "Buy Mag 7, AI Bubble, Port Elon and more from $5, and rotate between them in one tx." },
   { tag: "Live", title: "Dust Sweep", body: "Sweep small balances into tokenized stocks." },
   { tag: "Next", title: "Loan Guard", body: "A USDC reserve that pays down your Aave loan before liquidation, with a weekend shield for the Monday open. Repay-only contract, no owner, anyone can trigger it." },
   { tag: "Next", title: "Buy and borrow in one tx", body: "Spend USDC on a stock, deposit it and borrow against it, all in one batch." },
@@ -32,7 +32,7 @@ export default function NextPage() {
         What&apos;s <em>next.</em>
       </h1>
       <p className="muted" style={{ fontSize: 18, marginTop: 16, maxWidth: 600 }}>
-        Stock Port is your port of entry to onchain stocks. Here&apos;s what&apos;s live and what ships next.
+        Stock Port is your port of entry to Tokenized Stocks. Here&apos;s what&apos;s live and what ships next.
       </p>
       <div style={{ display: "grid", gap: 12, marginTop: 36 }}>
         {ITEMS.map((i) => (

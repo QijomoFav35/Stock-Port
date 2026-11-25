@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   const headline = rotated
     ? `Rotated out of ${from!.name} into ${basket!.name}.`
     : !data
-      ? "Your port of entry to onchain stocks."
+      ? "Your port of entry to Tokenized Stocks."
       : dust
         ? `Swept ${usd} of dust into ${basket ? basket.name : "tokenized stocks"}.`
         : basket

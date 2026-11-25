@@ -14,7 +14,7 @@ const RULES: { icon: IconName; title: string; body: string; live: boolean }[] = 
   },
   { icon: "ph-eye", title: "Verified contracts only", body: "Every call is checked against an allowlist before your wallet opens.", live: true },
   { icon: "ph-clock", title: "Rebalance cap", body: "The Agent moves at most 25% of the basket per day.", live: false },
-  { icon: "ph-receipt", title: "Split and dividend aware", body: "Holdings read with B20 scaledBalanceOf, so splits don't skew shares.", live: false },
+  { icon: "ph-receipt", title: "Split and dividend aware", body: "Holdings read with B20 scaledBalanceOf, so splits don't skew your balance.", live: false },
 ];
 
 export default function Guardrails() {

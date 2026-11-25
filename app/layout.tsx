@@ -33,7 +33,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Stock Port · Your port of entry to onchain stocks",
+  title: "Stock Port · Your port of entry to Tokenized Stocks",
   description: "Buy, borrow, rotate and sweep tokenized stocks on Base from one terminal. Every move in one tx. Self-custody.",
 };
 
