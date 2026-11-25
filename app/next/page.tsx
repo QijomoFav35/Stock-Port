@@ -8,13 +8,13 @@ export const metadata: Metadata = {
 type Item = { tag: "Live" | "Next" | "Soon"; title: string; body: string };
 
 const ITEMS: Item[] = [
-  { tag: "Live", title: "Borrow against your stocks", body: "Deposit NVDAc, AAPLc, GOOGLc, METAc or SPCXc and borrow USDC on Morpho in one tx. Live health and liquidation price." },
+  { tag: "Live", title: "Borrow against your stocks", body: "Deposit NVDAc, AAPLc, MSFTc, GOOGLc, AMZNc, METAc, TSLAc or SPCXc and borrow USDC on Aave V4 in one tx. Live health and liquidation price." },
   { tag: "Live", title: "Themed baskets and Rotate", body: "Buy Mag 7, AI Bubble, Elon Mode and more from $5, and rotate between them in one tx." },
   { tag: "Live", title: "Dust Sweep", body: "Sweep small balances into tokenized stocks." },
   { tag: "Next", title: "Loan Guard", body: "An agent that pays down your loan from a USDC reserve you set before you get liquidated. It can only repay, never move your stocks." },
   { tag: "Next", title: "Buy and borrow in one tx", body: "Spend USDC on a stock, deposit it and borrow against it, all in one batch." },
   { tag: "Next", title: "Borrow from X", body: "Ask @bankrbot to open, top up or repay your Stock Port loan from a post." },
-  { tag: "Soon", title: "Aave V4 Equities Hub", body: "Route loans to whichever of Morpho or Aave has the lower rate and the deeper USDC." },
+  { tag: "Soon", title: "Best-rate routing", body: "Send each loan to whichever lender on Base has the lower rate and the deeper USDC." },
   { tag: "Soon", title: "Basket collateral", body: "Borrow against a whole basket in one position instead of one stock at a time." },
 ];
 
@@ -32,7 +32,7 @@ export default function NextPage() {
         What&apos;s <em>next.</em>
       </h1>
       <p className="muted" style={{ fontSize: 18, marginTop: 16, maxWidth: 600 }}>
-        Stock Port lets you borrow against your stocks without selling them. Here&apos;s what&apos;s live and what ships next.
+        Stock Port is your port of entry to onchain stocks. Here&apos;s what&apos;s live and what ships next.
       </p>
       <div style={{ display: "grid", gap: 12, marginTop: 36 }}>
         {ITEMS.map((i) => (

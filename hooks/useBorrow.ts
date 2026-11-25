@@ -1,12 +1,12 @@
 "use client";
 /**
- * Borrow USDC against a tokenized stock on Morpho, and pay it back.
+ * Borrow USDC against tokenized stocks on Aave V4 (Base), and pay it back.
  *
- * Borrow: [approve stock to Morpho, supplyCollateral, borrow USDC to you].
- * Repay:  [approve USDC to Morpho, repay, withdrawCollateral back to you].
+ * Borrow: [approve stock to the Spoke, supply, use as collateral (first time), borrow USDC to you].
+ * Repay:  [approve USDC to the Spoke, repay, withdraw the stock back to you].
  * One EIP-5792 atomic batch when the wallet supports it, otherwise sequential txs.
- * Every call goes to the Morpho contract with market params checked against lib/morpho.ts,
- * approvals are exact, and we cap new loans at 80% of the liquidation limit.
+ * Every call is checked before the wallet opens: only the Aave Spoke or an exact approval to it,
+ * only known reserves, and every position is the connected wallet's own.
  */
 import { useCallback, useEffect, useState } from "react";
 import { decodeFunctionData, encodeFunctionData, erc20Abi, isAddressEqual, type Address, type Hash, type Hex, type WalletClient } from "viem";
@@ -17,62 +17,88 @@ import { getBaseCapabilities, isUserRejection, shortError } from "@/lib/walletCa
 import { sendCallsCapabilities } from "@/lib/paymaster";
 import { USDC_BASE } from "@/lib/constants";
 import {
-  BORROW_MARKETS,
-  MORPHO,
-  SAFE_LTV_SHARE,
-  irmAbi,
-  marketId,
-  maxDebt,
-  morphoAbi,
-  oracleAbi,
-  rateToApy,
-  toAssetsUp,
-  type BorrowMarket,
-  type MarketParams,
-  type MarketState,
-} from "@/lib/morpho";
+  AAVE_ORACLE,
+  AAVE_SPOKE,
+  MIN_HEALTH,
+  RAY,
+  STOCK_RESERVES,
+  USDC_RESERVE,
+  VALUE_SCALE,
+  aaveOracleAbi,
+  reserveById,
+  spokeAbi,
+  type AaveReserve,
+} from "@/lib/aave";
 
-export type BorrowRow = {
-  market: BorrowMarket;
-  price: bigint; // Morpho oracle price (1e36 scale)
-  apy: number;
-  liquidity: bigint; // USDC left to borrow in the market, raw
-  wallet: bigint; // stock balance in the wallet, raw
-  collateral: bigint; // stock deposited, raw
-  debt: bigint; // USDC owed, raw (rounded up)
-  borrowShares: bigint;
-  state: MarketState;
+export type StockRow = {
+  reserve: AaveReserve;
+  price: number; // USD
+  wallet: bigint; // stock in the wallet, raw (8 decimals)
+  supplied: bigint; // stock deposited on Aave, raw
+  usingAsCollateral: boolean;
 };
+export type Account = {
+  collateralUsd: number;
+  avgCollateralFactor: number;
+  debtUsd: number;
+  debtRaw: bigint; // USDC owed, raw (6 decimals)
+  health: number; // Infinity with no debt
+};
+export type Market = { usdcAvailable: number; borrowApy?: number; factors: Record<string, number> };
 export type BorrowStatus = "idle" | "confirming" | "pending" | "success" | "error";
 type SendCall = { to: Address; data: Hex; label: string };
 
-/** Interest keeps accruing while you confirm, so a full repay approves the debt plus this much. */
+const NOBODY = "0x0000000000000000000000000000000000000001" as Address;
+/** Interest accrues while you confirm, so a full repay sends the debt plus a little. If Aave doesn't cap it, the batch reverts and nothing moves. */
 const REPAY_BUFFER_BPS = 5n; // 0.05%
 const REPAY_BUFFER_MIN = 10_000n; // $0.01
 
-function assertSafe(c: SendCall, m: BorrowMarket, account: Address) {
+function assertSafe(c: SendCall, account: Address) {
   const stop = (why: string): never => {
     throw new Error(`Stopped for your safety: ${why}. Nothing was sent to your wallet.`);
   };
-  if (isAddressEqual(c.to, m.params.collateralToken) || isAddressEqual(c.to, USDC_BASE)) {
+  const isToken = isAddressEqual(c.to, USDC_BASE) || STOCK_RESERVES.some((r) => isAddressEqual(r.token, c.to));
+  if (isToken) {
     const d = decodeFunctionData({ abi: erc20Abi, data: c.data });
     const spender = (d.args as readonly unknown[] | undefined)?.[0] as Address | undefined;
-    if (d.functionName !== "approve" || !spender || !isAddressEqual(spender, MORPHO)) stop("token call other than an approval to Morpho");
+    if (d.functionName !== "approve" || !spender || !isAddressEqual(spender, AAVE_SPOKE)) stop("token call other than an approval to Aave");
     return;
   }
-  if (!isAddressEqual(c.to, MORPHO)) stop("call to an unknown contract");
-  const d = decodeFunctionData({ abi: morphoAbi, data: c.data });
-  if (!["supplyCollateral", "borrow", "repay", "withdrawCollateral"].includes(d.functionName)) stop("unexpected Morpho function");
+  if (!isAddressEqual(c.to, AAVE_SPOKE)) stop("call to an unknown contract");
+  const d = decodeFunctionData({ abi: spokeAbi, data: c.data });
+  if (!["supply", "borrow", "repay", "withdraw", "setUsingAsCollateral"].includes(d.functionName)) stop("unexpected Aave function");
   const args = d.args as readonly unknown[];
-  const p = args[0] as MarketParams;
-  if (marketId(p) !== m.id) stop("market mismatch");
-  // Every position and every payout must be the connected wallet.
-  const who = (args.slice(2) as unknown[]).filter((x): x is Address => typeof x === "string" && x.length === 42);
-  if (!who.length || who.some((x) => !isAddressEqual(x, account))) stop("funds or position would go to another address");
+  if (!reserveById(args[0] as bigint)) stop("unknown Aave reserve");
+  if (!isAddressEqual(args[2] as Address, account)) stop("the position would belong to another address");
+}
+
+/** Health factor after adding `addCollUsd` of collateral at factor `cf` and `addDebtUsd` of debt. */
+export function healthAfter(a: Account, addCollUsd: number, cf: number, addDebtUsd: number) {
+  const weighted = a.collateralUsd * a.avgCollateralFactor + addCollUsd * cf;
+  const debt = a.debtUsd + addDebtUsd;
+  return debt <= 0 ? Infinity : weighted / debt;
+}
+
+/** Most USDC you can borrow while keeping health at or above MIN_HEALTH. */
+export function safeBorrowUsd(a: Account, addCollUsd: number, cf: number) {
+  const weighted = a.collateralUsd * a.avgCollateralFactor + addCollUsd * cf;
+  return Math.max(0, weighted / MIN_HEALTH - a.debtUsd);
+}
+
+/** Price of this stock at which the account hits health 1.0, other collateral unchanged. 0 = no risk. */
+export function liquidationPrice(a: Account, row: StockRow, addQty: number, addDebtUsd: number, cf: number) {
+  const qty = Number(row.supplied) / 1e8 + addQty;
+  if (qty <= 0) return 0;
+  const thisWeighted = row.usingAsCollateral ? (Number(row.supplied) / 1e8) * row.price * cf : 0;
+  const otherWeighted = a.collateralUsd * a.avgCollateralFactor - thisWeighted;
+  const need = a.debtUsd + addDebtUsd - otherWeighted;
+  return need <= 0 ? 0 : need / (qty * cf);
 }
 
 export function useBorrow(walletClient: WalletClient | undefined, account: Address | undefined) {
-  const [rows, setRows] = useState<BorrowRow[]>();
+  const [rows, setRows] = useState<StockRow[]>();
+  const [acct, setAcct] = useState<Account>();
+  const [market, setMarket] = useState<Market>();
   const [loadError, setLoadError] = useState<string>();
   const [status, setStatus] = useState<BorrowStatus>("idle");
   const [step, setStep] = useState<string>();
@@ -85,43 +111,58 @@ export function useBorrow(walletClient: WalletClient | undefined, account: Addre
     let dead = false;
     (async () => {
       try {
-        const who = account ?? "0x0000000000000000000000000000000000000001";
-        const first = await publicClient.multicall({
+        const who = account ?? NOBODY;
+        const per = await publicClient.multicall({
           allowFailure: false,
-          contracts: BORROW_MARKETS.flatMap((m) => [
-            { address: MORPHO, abi: morphoAbi, functionName: "market", args: [m.id] } as const,
-            { address: MORPHO, abi: morphoAbi, functionName: "position", args: [m.id, who] } as const,
-            { address: m.params.oracle, abi: oracleAbi, functionName: "price" } as const,
-            { address: m.params.collateralToken, abi: erc20Abi, functionName: "balanceOf", args: [who] } as const,
+          contracts: STOCK_RESERVES.flatMap((r) => [
+            { address: AAVE_ORACLE, abi: aaveOracleAbi, functionName: "getReservePrice", args: [r.reserveId] } as const,
+            { address: r.token, abi: erc20Abi, functionName: "balanceOf", args: [who] } as const,
+            { address: AAVE_SPOKE, abi: spokeAbi, functionName: "getUserSuppliedAssets", args: [r.reserveId, who] } as const,
+            { address: AAVE_SPOKE, abi: spokeAbi, functionName: "getUserReserveStatus", args: [r.reserveId, who] } as const,
           ]),
         });
-        const states = BORROW_MARKETS.map((_, i) => {
-          const s = first[i * 4] as unknown as readonly bigint[];
-          return { totalSupplyAssets: s[0], totalSupplyShares: s[1], totalBorrowAssets: s[2], totalBorrowShares: s[3], lastUpdate: s[4], fee: s[5] };
+        const glob = await publicClient.multicall({
+          allowFailure: false,
+          contracts: [
+            { address: AAVE_SPOKE, abi: spokeAbi, functionName: "getUserAccountData", args: [who] },
+            { address: AAVE_SPOKE, abi: spokeAbi, functionName: "getUserTotalDebt", args: [USDC_RESERVE.reserveId, who] },
+            { address: AAVE_SPOKE, abi: spokeAbi, functionName: "getReserveSuppliedAssets", args: [USDC_RESERVE.reserveId] },
+            { address: AAVE_SPOKE, abi: spokeAbi, functionName: "getReserveTotalDebt", args: [USDC_RESERVE.reserveId] },
+          ],
         });
-        const rates = await publicClient.multicall({
-          allowFailure: true,
-          contracts: BORROW_MARKETS.map((m, i) => ({ address: m.params.irm, abi: irmAbi, functionName: "borrowRateView", args: [m.params, states[i]] }) as const),
-        });
+        const api = await fetch("/api/aave/markets")
+          .then((r) => (r.ok ? r.json() : undefined))
+          .catch(() => undefined);
         if (dead) return;
+        const at = (i: number) => per[i] as unknown;
         setRows(
-          BORROW_MARKETS.map((m, i) => {
-            const pos = first[i * 4 + 1] as unknown as readonly bigint[];
-            const state = states[i];
-            const r = rates[i];
-            return {
-              market: m,
-              state,
-              price: first[i * 4 + 2] as unknown as bigint,
-              wallet: account ? (first[i * 4 + 3] as unknown as bigint) : 0n,
-              collateral: account ? pos[2] : 0n,
-              borrowShares: account ? pos[1] : 0n,
-              debt: account ? toAssetsUp(pos[1], state) : 0n,
-              liquidity: state.totalSupplyAssets - state.totalBorrowAssets,
-              apy: r.status === "success" ? rateToApy(r.result) : NaN,
-            };
-          }),
+          STOCK_RESERVES.map((reserve, i) => ({
+            reserve,
+            price: Number(at(i * 4) as bigint) / 1e8,
+            wallet: account ? (at(i * 4 + 1) as bigint) : 0n,
+            supplied: account ? (at(i * 4 + 2) as bigint) : 0n,
+            usingAsCollateral: account ? (at(i * 4 + 3) as readonly [boolean, boolean])[0] : false,
+          })),
         );
+        const a = glob[0] as unknown as readonly bigint[];
+        const debtRaw = glob[1] as unknown as bigint;
+        const usdcSupplied = glob[2] as unknown as bigint;
+        const usdcBorrowed = glob[3] as unknown as bigint;
+        const debtUsd = account ? Number(a[4]) / RAY / VALUE_SCALE : 0;
+        setAcct({
+          collateralUsd: account ? Number(a[3]) / VALUE_SCALE : 0,
+          avgCollateralFactor: account ? Number(a[1]) / 1e18 : 0,
+          debtUsd,
+          debtRaw: account ? debtRaw : 0n,
+          health: debtUsd > 0 ? Number(a[2]) / 1e18 : Infinity,
+        });
+        const apiRows = (api?.reserves ?? []) as { symbol: string; collateralFactor: number; borrowApy: number; borrowable: number }[];
+        const usdc = apiRows.find((r) => r.symbol === "USDC");
+        setMarket({
+          usdcAvailable: usdc?.borrowable ?? Math.max(0, Number(usdcSupplied - usdcBorrowed) / 1e6),
+          borrowApy: usdc?.borrowApy,
+          factors: Object.fromEntries(apiRows.filter((r) => r.collateralFactor > 0).map((r) => [r.symbol, r.collateralFactor])),
+        });
         setLoadError(undefined);
       } catch (e) {
         if (!dead) setLoadError(shortError(e));
@@ -133,7 +174,7 @@ export function useBorrow(walletClient: WalletClient | undefined, account: Addre
   }, [account, tick]);
 
   const send = useCallback(
-    async (m: BorrowMarket, calls: SendCall[], attestNonUS: boolean) => {
+    async (calls: SendCall[], attestNonUS: boolean) => {
       setError(undefined);
       setHashes([]);
       try {
@@ -142,7 +183,7 @@ export function useBorrow(walletClient: WalletClient | undefined, account: Addre
         const geo = await fetch("/api/geo").then((r) => r.json()).catch(() => ({}));
         if (geo?.tradingBlocked) throw new Error("Borrowing is not available in your region.");
         const suffix = requireDataSuffix();
-        for (const c of calls) assertSafe(c, m, account);
+        for (const c of calls) assertSafe(c, account);
         if ((await walletClient.getChainId()) !== base.id) await walletClient.switchChain({ id: base.id });
 
         const caps = await getBaseCapabilities(walletClient, account);
@@ -190,75 +231,71 @@ export function useBorrow(walletClient: WalletClient | undefined, account: Addre
 
   /** Deposit `deposit` (raw stock) and borrow `amount` (raw USDC). Either can be 0. */
   const borrow = useCallback(
-    async (row: BorrowRow, deposit: bigint, amount: bigint, attestNonUS: boolean) => {
-      if (!account) return;
-      const m = row.market;
-      const newColl = row.collateral + deposit;
-      const limit = (maxDebt(newColl, row.price, m.params.lltv) * BigInt(Math.round(SAFE_LTV_SHARE * 1000))) / 1000n;
-      if (deposit > row.wallet) return setError(`You only hold ${row.wallet} raw ${m.symbol}.`);
-      if (row.debt + amount > limit) return setError("That's past the safe limit for this collateral. Borrow less or add more stock.");
-      if (amount > row.liquidity) return setError("Not enough USDC left in this Morpho market right now. Try a smaller amount.");
+    async (row: StockRow, deposit: bigint, amount: bigint, attestNonUS: boolean) => {
+      if (!account || !acct || !market) return;
+      setError(undefined);
+      const r = row.reserve;
+      const cf = market.factors[r.symbol] ?? r.collateralFactor;
+      const addColl = (Number(deposit) / 1e8) * row.price;
+      // Stock already deposited but not switched on as collateral counts once we switch it on.
+      const idle = row.usingAsCollateral ? 0 : (Number(row.supplied) / 1e8) * row.price;
+      const addDebt = Number(amount) / 1e6;
+      if (deposit > row.wallet) return setError(`You don't hold that much ${r.symbol}.`);
+      if (addDebt > market.usdcAvailable) return setError("Not enough USDC left to borrow on Aave right now. Try a smaller amount.");
+      if (addDebt > 0 && healthAfter(acct, addColl + idle, cf, addDebt) < MIN_HEALTH) {
+        return setError(`That would leave your health under ${MIN_HEALTH}. Borrow less or add more stock.`);
+      }
       const calls: SendCall[] = [];
       if (deposit > 0n) {
-        const allowance = await publicClient.readContract({ address: m.params.collateralToken, abi: erc20Abi, functionName: "allowance", args: [account, MORPHO] });
+        const allowance = await publicClient.readContract({ address: r.token, abi: erc20Abi, functionName: "allowance", args: [account, AAVE_SPOKE] });
         if (allowance < deposit) {
-          calls.push({ to: m.params.collateralToken, data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [MORPHO, deposit] }), label: `Approve ${m.symbol}` });
+          calls.push({ to: r.token, data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [AAVE_SPOKE, deposit] }), label: `Approve ${r.symbol}` });
         }
+        calls.push({ to: AAVE_SPOKE, data: encodeFunctionData({ abi: spokeAbi, functionName: "supply", args: [r.reserveId, deposit, account] }), label: `Deposit ${r.symbol}` });
+      }
+      if (!row.usingAsCollateral && (deposit > 0n || row.supplied > 0n)) {
         calls.push({
-          to: MORPHO,
-          data: encodeFunctionData({ abi: morphoAbi, functionName: "supplyCollateral", args: [m.params, deposit, account, "0x"] }),
-          label: `Deposit ${m.symbol}`,
+          to: AAVE_SPOKE,
+          data: encodeFunctionData({ abi: spokeAbi, functionName: "setUsingAsCollateral", args: [r.reserveId, true, account] }),
+          label: `Use ${r.symbol} as collateral`,
         });
       }
       if (amount > 0n) {
-        calls.push({
-          to: MORPHO,
-          data: encodeFunctionData({ abi: morphoAbi, functionName: "borrow", args: [m.params, amount, 0n, account, account] }),
-          label: "Borrow USDC",
-        });
+        calls.push({ to: AAVE_SPOKE, data: encodeFunctionData({ abi: spokeAbi, functionName: "borrow", args: [USDC_RESERVE.reserveId, amount, account] }), label: "Borrow USDC" });
       }
       if (!calls.length) return;
-      return send(m, calls, attestNonUS);
+      return send(calls, attestNonUS);
     },
-    [account, send],
+    [account, acct, market, send],
   );
 
-  /** Repay `amount` (raw USDC), or everything when amount is "all"; optionally withdraw all stock after a full repay. */
-  const repay = useCallback(
-    async (row: BorrowRow, amount: bigint | "all", withdraw: boolean, attestNonUS: boolean) => {
-      if (!account) return;
-      const m = row.market;
-      const full = amount === "all" || amount >= row.debt;
-      const approveAmt = full ? row.debt + (row.debt * REPAY_BUFFER_BPS) / 10_000n + REPAY_BUFFER_MIN : (amount as bigint);
-      const usdc = await publicClient.readContract({ address: USDC_BASE, abi: erc20Abi, functionName: "balanceOf", args: [account] });
-      if (row.debt > 0n && usdc < (full ? row.debt : (amount as bigint))) return setError("Not enough USDC in your wallet to repay that.");
+  /** Repay all USDC debt, then withdraw this stock. */
+  const repayAndWithdraw = useCallback(
+    async (row: StockRow, attestNonUS: boolean) => {
+      if (!account || !acct) return;
+      setError(undefined);
       const calls: SendCall[] = [];
-      if (row.debt > 0n) {
-        const allowance = await publicClient.readContract({ address: USDC_BASE, abi: erc20Abi, functionName: "allowance", args: [account, MORPHO] });
-        if (allowance < approveAmt) {
-          calls.push({ to: USDC_BASE, data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [MORPHO, approveAmt] }), label: "Approve USDC" });
+      if (acct.debtRaw > 0n) {
+        const amt = acct.debtRaw + (acct.debtRaw * REPAY_BUFFER_BPS) / 10_000n + REPAY_BUFFER_MIN;
+        const usdc = await publicClient.readContract({ address: USDC_BASE, abi: erc20Abi, functionName: "balanceOf", args: [account] });
+        if (usdc < amt) return setError("Not enough USDC in your wallet to repay the full loan.");
+        const allowance = await publicClient.readContract({ address: USDC_BASE, abi: erc20Abi, functionName: "allowance", args: [account, AAVE_SPOKE] });
+        if (allowance < amt) {
+          calls.push({ to: USDC_BASE, data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [AAVE_SPOKE, amt] }), label: "Approve USDC" });
         }
-        calls.push({
-          to: MORPHO,
-          data: encodeFunctionData({
-            abi: morphoAbi,
-            functionName: "repay",
-            args: full ? [m.params, 0n, row.borrowShares, account, "0x"] : [m.params, amount as bigint, 0n, account, "0x"],
-          }),
-          label: "Repay USDC",
-        });
+        calls.push({ to: AAVE_SPOKE, data: encodeFunctionData({ abi: spokeAbi, functionName: "repay", args: [USDC_RESERVE.reserveId, amt, account] }), label: "Repay USDC" });
       }
-      if (withdraw && full && row.collateral > 0n) {
+      if (row.supplied > 0n) {
         calls.push({
-          to: MORPHO,
-          data: encodeFunctionData({ abi: morphoAbi, functionName: "withdrawCollateral", args: [m.params, row.collateral, account, account] }),
-          label: `Withdraw ${m.symbol}`,
+          to: AAVE_SPOKE,
+          data: encodeFunctionData({ abi: spokeAbi, functionName: "withdraw", args: [row.reserve.reserveId, row.supplied, account] }),
+          label: `Withdraw ${row.reserve.symbol}`,
         });
       }
       if (!calls.length) return;
-      return send(m, calls, attestNonUS);
+      return send(calls, attestNonUS);
     },
-    [account, send],
+    [account, acct, send],
   );
 
   const reset = useCallback(() => {
@@ -267,5 +304,5 @@ export function useBorrow(walletClient: WalletClient | undefined, account: Addre
     setHashes([]);
   }, []);
 
-  return { rows, loadError, borrow, repay, status, step, error, hashes, reset, refresh, builderCodeConfigured: !!DATA_SUFFIX };
+  return { rows, acct, market, loadError, borrow, repayAndWithdraw, status, step, error, hashes, reset, refresh, builderCodeConfigured: !!DATA_SUFFIX };
 }

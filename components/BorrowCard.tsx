@@ -3,16 +3,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useAccount, useWalletClient } from "wagmi";
 import { formatUnits, parseUnits } from "viem";
 import ConnectButton from "@/components/ConnectButton";
-import { useBorrow, type BorrowRow } from "@/hooks/useBorrow";
-import { MORPHO, SAFE_LTV_SHARE, collateralValue, health, liquidationPrice, maxDebt } from "@/lib/morpho";
+import { useBorrow, healthAfter, liquidationPrice, safeBorrowUsd, type StockRow } from "@/hooks/useBorrow";
+import { AAVE_SPOKE, MIN_HEALTH } from "@/lib/aave";
 import { basescanAddress } from "@/lib/txGuard";
 
 const ATTEST_KEY = "sp_attest_non_us";
-const DEC = 8;
-const usd = (raw: bigint) => "$" + Number(formatUnits(raw, 6)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const usdN = (n: number) => "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const qty = (raw: bigint) => Number(formatUnits(raw, DEC)).toLocaleString(undefined, { maximumSignificantDigits: 5 });
-const pct = (x: number) => (Number.isFinite(x) ? (x * 100).toFixed(2) + "%" : "—");
+const big = (n: number) => "$" + (n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : n.toFixed(0));
+const qty = (raw: bigint) => Number(formatUnits(raw, 8)).toLocaleString(undefined, { maximumSignificantDigits: 5 });
+const pct = (x?: number) => (x !== undefined && Number.isFinite(x) ? (x * 100).toFixed(2) + "%" : "—");
 const parse = (v: string, d: number) => {
   try {
     return v.trim() ? parseUnits(v.trim(), d) : 0n;
@@ -22,13 +21,13 @@ const parse = (v: string, d: number) => {
 };
 
 function HealthBar({ h }: { h: number }) {
-  const label = !Number.isFinite(h) ? "No loan" : h >= 1.5 ? "Safe" : h >= 1.15 ? "Watch" : "At risk";
-  const color = !Number.isFinite(h) || h >= 1.5 ? "#B6F569" : h >= 1.15 ? "#FFD12F" : "#FC401F";
-  const fill = !Number.isFinite(h) ? 100 : Math.max(4, Math.min(100, ((h - 1) / 1) * 100));
+  const label = !Number.isFinite(h) ? "No loan" : h >= 1.6 ? "Safe" : h >= MIN_HEALTH ? "Watch" : "At risk";
+  const color = !Number.isFinite(h) || h >= 1.6 ? "#B6F569" : h >= MIN_HEALTH ? "#FFD12F" : "#FC401F";
+  const fill = !Number.isFinite(h) ? 100 : Math.max(4, Math.min(100, (h - 1) * 100));
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--g60)" }}>
-        <span>Health</span>
+        <span>Health after this</span>
         <span className="num" style={{ color: "var(--ink)", fontWeight: 600 }}>
           {Number.isFinite(h) ? h.toFixed(2) : "∞"} · {label}
         </span>
@@ -40,7 +39,7 @@ function HealthBar({ h }: { h: number }) {
   );
 }
 
-/** Borrow USDC against a tokenized stock on Morpho, without selling it. */
+/** Borrow USDC against a tokenized stock on Aave V4, without selling it. */
 export default function BorrowCard({ geoBlocked, initial = "NVDAc" }: { geoBlocked: boolean; initial?: string }) {
   const { address } = useAccount();
   const { data: walletClient } = useWalletClient();
@@ -56,120 +55,131 @@ export default function BorrowCard({ geoBlocked, initial = "NVDAc" }: { geoBlock
     } catch {}
   }, []);
 
-  const row: BorrowRow | undefined = b.rows?.find((r) => r.market.symbol === sym);
-  const depRaw = parse(dep, DEC);
+  const row: StockRow | undefined = b.rows?.find((r) => r.reserve.symbol === sym);
+  const depRaw = parse(dep, 8);
   const amtRaw = parse(amt, 6);
   const busy = b.status === "confirming" || b.status === "pending";
+  const cf = row ? b.market?.factors[row.reserve.symbol] ?? row.reserve.collateralFactor : 0;
 
   const preview = useMemo(() => {
-    if (!row || depRaw < 0n || amtRaw < 0n) return undefined;
-    const coll = row.collateral + depRaw;
-    const debt = row.debt + amtRaw;
-    const lltv = row.market.params.lltv;
-    const safeMax = (maxDebt(coll, row.price, lltv) * BigInt(Math.round(SAFE_LTV_SHARE * 1000))) / 1000n;
-    const room = safeMax > row.debt ? safeMax - row.debt : 0n;
+    if (!row || !b.acct || depRaw < 0n || amtRaw < 0n) return undefined;
+    const addQty = Number(depRaw) / 1e8;
+    const idle = row.usingAsCollateral ? 0 : (Number(row.supplied) / 1e8) * row.price;
+    const addColl = addQty * row.price + idle;
+    const addDebt = Number(amtRaw) / 1e6;
+    const room = Math.min(safeBorrowUsd(b.acct, addColl, cf), b.market?.usdcAvailable ?? 0);
     return {
-      coll,
-      debt,
-      h: health(coll, row.price, lltv, debt),
-      liq: liquidationPrice(coll, debt, lltv, DEC),
-      value: collateralValue(coll, row.price),
-      room: room < row.liquidity ? room : row.liquidity,
+      h: healthAfter(b.acct, addColl, cf, addDebt),
+      liq: liquidationPrice(b.acct, row, addQty, addDebt, cf),
+      room,
+      debtAfter: b.acct.debtUsd + addDebt,
     };
-  }, [row, depRaw, amtRaw]);
+  }, [row, b.acct, b.market, depRaw, amtRaw, cf]);
 
   if (geoBlocked) {
     return (
-      <section className="card pad" style={{ padding: 32 }}>
+      <section className="card pad" style={{ padding: 32 }} id="borrow">
         <div className="eyebrow">Borrow</div>
         <p className="muted" style={{ marginTop: 12 }}>Borrowing isn&apos;t available in your region.</p>
       </section>
     );
   }
 
-  const price = row ? Number(row.price) / 1e34 : 0;
-  const lltv = row ? Number(row.market.params.lltv) / 1e18 : 0;
-
   return (
-    <section className="card pad" style={{ padding: 32 }} id="borrow">
-      <div className="eyebrow">Borrow · Morpho on Base</div>
+    <section className="card pad" style={{ padding: 32, scrollMarginTop: 80 }} id="borrow">
+      <div className="eyebrow">Gate A1 · Borrow · Aave V4 on Base</div>
       <div className="disp" style={{ fontSize: 30, marginTop: 8 }}>
         Get USDC. <em>Keep the stock.</em>
       </div>
+      <p className="muted" style={{ fontSize: 14, marginTop: 8 }}>
+        {b.market ? (
+          <>
+            {big(b.market.usdcAvailable)} USDC ready to borrow at {pct(b.market.borrowApy)} APY.
+          </>
+        ) : (
+          "Reading Aave on Base…"
+        )}
+      </p>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 18 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
         {(b.rows ?? []).map((r) => {
-          const on = r.market.symbol === sym;
+          const on = r.reserve.symbol === sym;
+          const f = b.market?.factors[r.reserve.symbol] ?? r.reserve.collateralFactor;
           return (
             <button
-              key={r.market.id}
-              onClick={() => setSym(r.market.symbol)}
+              key={r.reserve.symbol}
+              onClick={() => setSym(r.reserve.symbol)}
               disabled={busy}
               className="btn btn-sm"
               style={{ background: on ? "var(--ink)" : "#fff", color: on ? "#fff" : "var(--ink)", border: "1px solid var(--line-hi)", boxShadow: "none" }}
             >
-              {r.market.symbol}
-              <span className="num" style={{ opacity: 0.7, marginLeft: 6 }}>{pct(r.apy)}</span>
+              {r.reserve.symbol}
+              <span className="num" style={{ opacity: 0.7, marginLeft: 6 }}>{Math.round(f * 100)}%</span>
             </button>
           );
         })}
       </div>
-      {!b.rows && !b.loadError && <p className="muted" style={{ marginTop: 16 }}>Reading Morpho markets on Base…</p>}
-      {b.loadError && <p style={{ marginTop: 16, color: "var(--red)", fontSize: 14 }}>Couldn&apos;t read Morpho: {b.loadError}</p>}
+      {b.loadError && <p style={{ marginTop: 16, color: "var(--red)", fontSize: 14 }}>Couldn&apos;t read Aave: {b.loadError}</p>}
 
-      {row && preview && (
+      {row && preview && b.acct && (
         <>
           <div className="soft" style={{ padding: 18, borderRadius: 18, marginTop: 16, display: "grid", gap: 8, fontSize: 14 }}>
             <div className="rule">
-              <span>{row.market.symbol} price (Chainlink)</span>
-              <span className="num">{usdN(price)}</span>
+              <span>{row.reserve.symbol} price (Chainlink)</span>
+              <span className="num">{usdN(row.price)}</span>
             </div>
             <div className="rule">
-              <span>Borrow APY · liquidation at</span>
-              <span className="num">
-                {pct(row.apy)} · {(lltv * 100).toFixed(1)}% LTV
-              </span>
-            </div>
-            <div className="rule">
-              <span>USDC left to borrow in this market</span>
-              <span className="num">{usd(row.liquidity)}</span>
+              <span>Borrow power</span>
+              <span className="num">{Math.round(cf * 100)}% of its value</span>
             </div>
             {address && (
-              <div className="rule">
-                <span>Your loan</span>
-                <span className="num">
-                  {qty(row.collateral)} {row.market.symbol} in · {usd(row.debt)} owed
-                </span>
-              </div>
+              <>
+                <div className="rule">
+                  <span>{row.reserve.symbol} deposited · in wallet</span>
+                  <span className="num">
+                    {qty(row.supplied)} · {qty(row.wallet)}
+                  </span>
+                </div>
+                <div className="rule">
+                  <span>Your loan</span>
+                  <span className="num">
+                    {usdN(b.acct.debtUsd)} owed · health {Number.isFinite(b.acct.health) ? b.acct.health.toFixed(2) : "∞"}
+                  </span>
+                </div>
+              </>
             )}
           </div>
 
           <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
             <label style={{ fontSize: 13, color: "var(--g60)" }}>
-              Deposit {row.market.symbol}{" "}
+              Deposit {row.reserve.symbol}
               {address && (
-                <button className="linkish" onClick={() => setDep(formatUnits(row.wallet, DEC))} style={{ marginLeft: 6 }}>
+                <button className="linkish" onClick={() => setDep(formatUnits(row.wallet, 8))} style={{ marginLeft: 8 }}>
                   Max {qty(row.wallet)}
                 </button>
               )}
               <input className="input num" inputMode="decimal" placeholder="0" value={dep} onChange={(e) => setDep(e.target.value)} disabled={busy} />
             </label>
             <label style={{ fontSize: 13, color: "var(--g60)" }}>
-              Borrow USDC{" "}
-              <button className="linkish" onClick={() => setAmt(formatUnits(preview.room, 6))} style={{ marginLeft: 6 }}>
-                Safe max {usd(preview.room)}
+              Borrow USDC
+              <button className="linkish" onClick={() => setAmt((Math.floor(preview.room * 100) / 100).toFixed(2))} style={{ marginLeft: 8 }}>
+                Safe max {usdN(preview.room)}
               </button>
               <input className="input num" inputMode="decimal" placeholder="0" value={amt} onChange={(e) => setAmt(e.target.value)} disabled={busy} />
             </label>
             <HealthBar h={preview.h} />
             <div style={{ fontSize: 13, color: "var(--g60)" }}>
-              {preview.debt > 0n ? (
-                <>
-                  Liquidated if {row.market.symbol} drops below <b className="num" style={{ color: "var(--ink)" }}>{usdN(preview.liq)}</b> (
-                  {price > 0 ? ((1 - preview.liq / price) * 100).toFixed(1) : "—"}% away). We cap loans at {Math.round(SAFE_LTV_SHARE * 100)}% of the limit.
-                </>
+              {preview.debtAfter > 0 ? (
+                preview.liq > 0 ? (
+                  <>
+                    Liquidated if {row.reserve.symbol} falls below <b className="num" style={{ color: "var(--ink)" }}>{usdN(preview.liq)}</b> (
+                    {((1 - preview.liq / row.price) * 100).toFixed(1)}% away). We stop new loans under health {MIN_HEALTH}.
+                  </>
+                ) : (
+                  <>Your other collateral covers this loan on its own.</>
+                )
               ) : (
-                <>Collateral value {usd(preview.value)}. No loan, no liquidation risk.</>
+                <>No loan, no liquidation risk.</>
               )}
             </div>
           </div>
@@ -200,11 +210,11 @@ export default function BorrowCard({ geoBlocked, initial = "NVDAc" }: { geoBlock
                   disabled={!attest || busy || depRaw < 0n || amtRaw < 0n || (depRaw === 0n && amtRaw === 0n) || !b.builderCodeConfigured}
                   onClick={() => b.borrow(row, depRaw, amtRaw, attest)}
                 >
-                  {busy ? b.step ?? "Working…" : amtRaw > 0n ? `Borrow ${usd(amtRaw)}` : "Deposit"}
+                  {busy ? b.step ?? "Working…" : amtRaw > 0n ? `${depRaw > 0n ? "Deposit and borrow" : "Borrow"} ${usdN(Number(amtRaw) / 1e6)}` : "Deposit"}
                 </button>
-                {(row.debt > 0n || row.collateral > 0n) && (
-                  <button className="btn btn-ghost" disabled={!attest || busy} onClick={() => b.repay(row, "all", true, attest)}>
-                    Repay {row.debt > 0n ? usd(row.debt) + " " : ""}and withdraw {row.market.symbol}
+                {(b.acct.debtRaw > 0n || row.supplied > 0n) && (
+                  <button className="btn btn-ghost" disabled={!attest || busy} onClick={() => b.repayAndWithdraw(row, attest)}>
+                    {b.acct.debtRaw > 0n ? `Repay ${usdN(b.acct.debtUsd)} and withdraw ${row.reserve.symbol}` : `Withdraw ${row.reserve.symbol}`}
                   </button>
                 )}
               </>
@@ -222,11 +232,11 @@ export default function BorrowCard({ geoBlocked, initial = "NVDAc" }: { geoBlock
           )}
           {b.error && <p style={{ fontSize: 14, color: "var(--red)", marginTop: 12 }}>{b.error}</p>}
           <p style={{ fontSize: 12, color: "var(--g60)", marginTop: 14 }}>
-            Self-custody: your stock sits in the{" "}
-            <a href={basescanAddress(MORPHO)} target="_blank" rel="noreferrer">
-              Morpho contract
+            Self-custody: your stock sits in{" "}
+            <a href={basescanAddress(AAVE_SPOKE)} target="_blank" rel="noreferrer">
+              Aave&apos;s contract
             </a>
-            , never with us. Approvals are exact. Loans are variable rate and can be liquidated if the price falls.
+            , never with us. Approvals are exact. Variable rate. Prices update 24/5 and loans can be liquidated if the stock falls.
           </p>
         </>
       )}
