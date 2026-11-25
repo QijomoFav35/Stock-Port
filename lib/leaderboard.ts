@@ -1,8 +1,10 @@
 /**
  * Basket leaderboard from onchain Chainlink NAV history: no database, anyone can recompute it.
  *
- * For each stock we find the feed's price at (now - 24h) and (now - 7d) by binary-searching the
- * feed's rounds in its current phase (Chainlink proxy round id = phaseId << 64 | aggregatorRoundId).
+ * For each stock we find the feed's price at (now - 24h) and (now - 7d) by searching the feed's
+ * rounds in its current phase (Chainlink proxy round id = phaseId << 64 | aggregatorRoundId).
+ * The search is 16-way and batched through Multicall3: every step probes 15 rounds for every
+ * stock and both dates in one call, so the whole board takes about 4 round trips.
  * Basket return = Σ weight × (price_now / price_then − 1). NAV feeds are total-return references
  * and hold their value when the market is closed.
  */
@@ -12,69 +14,76 @@ import { BASKETS, UNIVERSE } from "@/lib/baskets";
 import { feedFor } from "@/lib/aerodrome";
 import { listTokenizedStocks } from "@/lib/tokenizedStocks";
 
+const roundOutputs = [
+  { type: "uint80", name: "roundId" },
+  { type: "int256", name: "answer" },
+  { type: "uint256", name: "startedAt" },
+  { type: "uint256", name: "updatedAt" },
+  { type: "uint80", name: "answeredInRound" },
+] as const;
 const roundAbi = [
-  {
-    type: "function",
-    name: "latestRoundData",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [
-      { type: "uint80", name: "roundId" },
-      { type: "int256", name: "answer" },
-      { type: "uint256", name: "startedAt" },
-      { type: "uint256", name: "updatedAt" },
-      { type: "uint80", name: "answeredInRound" },
-    ],
-  },
-  {
-    type: "function",
-    name: "getRoundData",
-    stateMutability: "view",
-    inputs: [{ type: "uint80", name: "roundId" }],
-    outputs: [
-      { type: "uint80", name: "roundId" },
-      { type: "int256", name: "answer" },
-      { type: "uint256", name: "startedAt" },
-      { type: "uint256", name: "updatedAt" },
-      { type: "uint80", name: "answeredInRound" },
-    ],
-  },
+  { type: "function", name: "latestRoundData", stateMutability: "view", inputs: [], outputs: roundOutputs },
+  { type: "function", name: "getRoundData", stateMutability: "view", inputs: [{ type: "uint80", name: "roundId" }], outputs: roundOutputs },
 ] as const;
 
 const MASK = (1n << 64n) - 1n;
+const PROBES = 15;
+const MAX_STEPS = 8;
+const BATCH_BYTES = 16_384;
 
-/** Feed answer at or before `ts` (unix seconds). Falls back to the oldest round of the current phase. */
-async function answerAt(feed: Address, ts: number): Promise<{ now: bigint; then: bigint }> {
-  const latest = await publicClient.readContract({ address: feed, abi: roundAbi, functionName: "latestRoundData" });
-  const phase = latest[0] >> 64n;
-  let lo = 1n;
-  let hi = latest[0] & MASK;
-  const now = latest[1];
-  if (Number(latest[3]) <= ts) return { now, then: now };
-  let best: bigint | undefined;
-  while (lo <= hi) {
-    const mid = (lo + hi) / 2n;
-    const r = await publicClient
-      .readContract({ address: feed, abi: roundAbi, functionName: "getRoundData", args: [(phase << 64n) | mid] })
-      .catch(() => undefined);
-    if (!r || r[3] === 0n) {
-      lo = mid + 1n; // missing round: search later
-      continue;
+type Search = {
+  feed: Address;
+  phase: bigint;
+  ts: number;
+  lo: bigint; // largest round known to be at or before ts (0 = none found yet)
+  hi: bigint; // smallest round known to be after ts
+  loAnswer?: bigint;
+};
+
+/** Up to PROBES evenly spaced rounds strictly between lo and hi. */
+function probesFor(s: Search): bigint[] {
+  const gap = s.hi - s.lo;
+  if (gap <= 1n) return [];
+  const n = gap - 1n < BigInt(PROBES) ? Number(gap - 1n) : PROBES;
+  const out = new Set<bigint>();
+  for (let i = 1; i <= n; i++) out.add(s.lo + (gap * BigInt(i)) / BigInt(n + 1));
+  return [...out].filter((r) => r > s.lo && r < s.hi);
+}
+
+/** Runs every search to the end, batching all probes of a step into one multicall. */
+async function runSearches(searches: Search[]) {
+  for (let step = 0; step < MAX_STEPS; step++) {
+    const plan = searches.map((s) => ({ s, rounds: probesFor(s) })).filter((p) => p.rounds.length);
+    if (!plan.length) return;
+    const contracts = plan.flatMap(({ s, rounds }) =>
+      rounds.map((r) => ({ address: s.feed, abi: roundAbi, functionName: "getRoundData" as const, args: [(s.phase << 64n) | r] as const })),
+    );
+    const res = await publicClient.multicall({ contracts, allowFailure: true, batchSize: BATCH_BYTES });
+    let k = 0;
+    let progressed = false;
+    for (const { s, rounds } of plan) {
+      let lo = s.lo;
+      let loAnswer = s.loAnswer;
+      let hi = s.hi;
+      for (const r of rounds) {
+        const x = res[k++];
+        if (x.status !== "success" || x.result[3] === 0n) continue; // missing round
+        if (Number(x.result[3]) <= s.ts) {
+          if (r > lo) {
+            lo = r;
+            loAnswer = x.result[1];
+          }
+        } else if (r < hi) {
+          hi = r;
+        }
+      }
+      if (lo !== s.lo || hi !== s.hi) progressed = true;
+      s.lo = lo;
+      s.hi = hi;
+      s.loAnswer = loAnswer;
     }
-    if (Number(r[3]) <= ts) {
-      best = r[1];
-      lo = mid + 1n;
-    } else {
-      hi = mid - 1n;
-    }
+    if (!progressed) return; // only missing rounds left in the gaps
   }
-  if (best === undefined) {
-    const first = await publicClient
-      .readContract({ address: feed, abi: roundAbi, functionName: "getRoundData", args: [(phase << 64n) | 1n] })
-      .catch(() => undefined);
-    best = first && first[1] > 0n ? first[1] : now;
-  }
-  return { now, then: best };
 }
 
 export type BasketRow = { id: string; name: string; color: string; ink: string; d1: number; d7: number };
@@ -88,25 +97,55 @@ const TTL = 15 * 60_000;
 async function compute(): Promise<Leaderboard> {
   const all = await listTokenizedStocks();
   const nowS = Math.floor(Date.now() / 1000);
-  const moves: StockMove[] = [];
-  // Sequential per stock keeps us under public RPC rate limits.
-  for (const sym of UNIVERSE) {
-    const t = all.find((x) => x.symbol === sym);
-    if (!t) continue;
-    const feed = await feedFor(sym, getAddress(t.contract_address));
-    if (!feed) continue;
-    try {
-      const a = await answerAt(feed, nowS - 86_400);
-      const b = await answerAt(feed, nowS - 7 * 86_400);
-      moves.push({
-        symbol: sym,
-        d1: a.then > 0n ? Number(a.now) / Number(a.then) - 1 : 0,
-        d7: b.then > 0n ? Number(b.now) / Number(b.then) - 1 : 0,
-      });
-    } catch (e) {
-      console.warn(`[leaderboard] ${sym}: ${(e as Error).message}`);
-    }
+  const feeds = (
+    await Promise.all(
+      UNIVERSE.map(async (sym) => {
+        const t = all.find((x) => x.symbol === sym);
+        const feed = t ? await feedFor(sym, getAddress(t.contract_address)) : undefined;
+        return feed ? { sym, feed } : undefined;
+      }),
+    )
+  ).filter((x): x is { sym: string; feed: Address } => !!x);
+
+  const latest = await publicClient.multicall({
+    contracts: feeds.map((f) => ({ address: f.feed, abi: roundAbi, functionName: "latestRoundData" as const })),
+    allowFailure: true,
+    batchSize: BATCH_BYTES,
+  });
+
+  const rows: { sym: string; now: bigint; d1: Search; d7: Search }[] = [];
+  feeds.forEach((f, i) => {
+    const l = latest[i];
+    if (l.status !== "success" || l.result[1] <= 0n) return console.warn(`[leaderboard] ${f.sym}: no latest round`);
+    const [roundId, answer, , updatedAt] = l.result;
+    const phase = roundId >> 64n;
+    const agg = roundId & MASK;
+    const mk = (ts: number): Search =>
+      Number(updatedAt) <= ts
+        ? { feed: f.feed, phase, ts, lo: agg, hi: agg + 1n, loAnswer: answer } // no update since ts
+        : { feed: f.feed, phase, ts, lo: 0n, hi: agg };
+    rows.push({ sym: f.sym, now: answer, d1: mk(nowS - 86_400), d7: mk(nowS - 7 * 86_400) });
+  });
+
+  await runSearches(rows.flatMap((r) => [r.d1, r.d7]));
+
+  // Feed younger than the window: compare with its first round in this phase.
+  const firsts = rows.flatMap((r) => [r.d1, r.d7]).filter((s) => s.loAnswer === undefined);
+  if (firsts.length) {
+    const res = await publicClient.multicall({
+      contracts: firsts.map((s) => ({ address: s.feed, abi: roundAbi, functionName: "getRoundData" as const, args: [(s.phase << 64n) | 1n] as const })),
+      allowFailure: true,
+      batchSize: BATCH_BYTES,
+    });
+    firsts.forEach((s, i) => {
+      const x = res[i];
+      if (x.status === "success" && x.result[1] > 0n) s.loAnswer = x.result[1];
+    });
   }
+
+  const move = (now: bigint, then?: bigint) => (then && then > 0n ? Number(now) / Number(then) - 1 : 0);
+  const moves: StockMove[] = rows.map((r) => ({ symbol: r.sym, d1: move(r.now, r.d1.loAnswer), d7: move(r.now, r.d7.loAnswer) }));
+
   const by = new Map(moves.map((m) => [m.symbol, m]));
   const baskets = BASKETS.map((bk) => {
     let d1 = 0;
