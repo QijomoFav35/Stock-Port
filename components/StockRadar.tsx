@@ -2,7 +2,7 @@ import { isNavStale, type TokenizedStock } from "@/lib/tokenizedStocks";
 import type { PegHealth } from "@/lib/peg";
 import PegChip from "@/components/PegChip";
 
-const usd = (n: number) => "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const usd = (n: number) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** Top Nasdaq-100 names listed on Base without a live price yet. They show N/A and fill in once the feed goes live. */
 const WATCHLIST = ["AMDc", "PLTRc", "HOODc", "AVGOc", "NFLXc"];

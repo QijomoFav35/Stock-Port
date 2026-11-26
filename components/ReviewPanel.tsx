@@ -5,7 +5,7 @@ import Icon from "@/components/Icon";
 import PegChip from "@/components/PegChip";
 
 const fmtUsd = (s: string) => `$${Number(s).toFixed(2)}`;
-const fmtQty = (s: string) => Number(s).toLocaleString(undefined, { maximumSignificantDigits: 4 });
+const fmtQty = (s: string) => Number(s).toLocaleString("en-US", { maximumSignificantDigits: 4 });
 const ROUTE: Record<PortPlan["provider"], string> = { aerodrome: "Aerodrome", "0x": "0x", o1: "o1 Exchange" };
 
 function Dot({ n }: { n: number }) {

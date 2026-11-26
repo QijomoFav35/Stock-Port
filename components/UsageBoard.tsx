@@ -59,7 +59,7 @@ export default function UsageBoard() {
       </div>
       <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
         {by.trade} basket or sweep txs · {by.borrow} Aave V4 loan txs · {by.guard} Loan Guard txs.{" "}
-        {u.behind && u.behind > 1000 ? "Still catching up with the latest blocks." : `Up to date as of block ${u.scannedTo?.toLocaleString()}.`}
+        {u.behind && u.behind > 1000 ? "Still catching up with the latest blocks." : `Up to date as of block ${u.scannedTo?.toLocaleString("en-US")}.`}
       </p>
       <div style={{ display: "grid", gap: 6, marginTop: 12 }}>
         {recent.map((t) => (

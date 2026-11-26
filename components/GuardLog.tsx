@@ -14,7 +14,7 @@ type Stats = {
   lastCheck?: { at: number; checked: number; atRisk: number } | null;
 };
 
-const usd = (raw: string) => "$" + Number(formatUnits(BigInt(raw || "0"), 6)).toLocaleString(undefined, { maximumFractionDigits: 2 });
+const usd = (raw: string) => "$" + Number(formatUnits(BigInt(raw || "0"), 6)).toLocaleString("en-US", { maximumFractionDigits: 2 });
 function ago(ms: number) {
   const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
   if (s < 60) return `${s}s ago`;

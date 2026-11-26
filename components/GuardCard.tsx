@@ -8,7 +8,7 @@ import { useLoanGuard, type GuardState } from "@/hooks/useLoanGuard";
 import { GUARD_PREVIEW, LOAN_GUARD } from "@/lib/loanGuard";
 import { basescanAddress } from "@/lib/txGuard";
 
-const usd = (raw: bigint) => "$" + Number(formatUnits(raw, 6)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const usd = (raw: bigint) => "$" + Number(formatUnits(raw, 6)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const num = (v: string) => (v.trim() && Number.isFinite(Number(v)) ? Number(v) : NaN);
 /** How far collateral can fall before liquidation at a given health factor (debt held constant). */
 const cushion = (hf: number) => Math.round((1 - 1 / hf) * 100);
@@ -134,7 +134,7 @@ export default function GuardCard() {
               {g.state.lastProtect > 0 && (
                 <div className="rule">
                   <span>Last top-up</span>
-                  <span className="num">{mounted ? new Date(g.state.lastProtect * 1000).toLocaleString() : "…"}</span>
+                  <span className="num">{mounted ? new Date(g.state.lastProtect * 1000).toLocaleString("en-US") : "…"}</span>
                 </div>
               )}
             </div>

@@ -13,7 +13,7 @@ import type { StockInfo } from "@/components/BasketDesk";
 
 const ATTEST_KEY = "sp_attest_non_us";
 const ROUTE = { aerodrome: "Aerodrome", o1: "o1 Exchange", "0x": "0x" } as const;
-const qty = (raw: string, dec: number) => Number(formatUnits(BigInt(raw), dec)).toLocaleString(undefined, { maximumSignificantDigits: 4 });
+const qty = (raw: string, dec: number) => Number(formatUnits(BigInt(raw), dec)).toLocaleString("en-US", { maximumSignificantDigits: 4 });
 
 /** Rotate out of one basket into the selected one, in one batch. */
 export default function RotateCard({

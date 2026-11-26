@@ -8,9 +8,9 @@ import { AAVE_SPOKE, MIN_HEALTH } from "@/lib/aave";
 import { basescanAddress } from "@/lib/txGuard";
 
 const ATTEST_KEY = "sp_attest_non_us";
-const usdN = (n: number) => "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const usdN = (n: number) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const big = (n: number) => "$" + (n >= 1e6 ? (n / 1e6).toFixed(2) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : n.toFixed(0));
-const qty = (raw: bigint) => Number(formatUnits(raw, 8)).toLocaleString(undefined, { maximumSignificantDigits: 5 });
+const qty = (raw: bigint) => Number(formatUnits(raw, 8)).toLocaleString("en-US", { maximumSignificantDigits: 5 });
 const pct = (x?: number) => (x !== undefined && Number.isFinite(x) ? (x * 100).toFixed(2) + "%" : "—");
 const parse = (v: string, d: number) => {
   try {

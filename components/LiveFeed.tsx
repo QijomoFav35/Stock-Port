@@ -12,7 +12,7 @@ function ago(ms: number) {
   return `${Math.round(s / 3600)}h ago`;
 }
 const qty = (n: number) => (n >= 100 ? n.toFixed(0) : n >= 1 ? n.toFixed(2) : n.toPrecision(2));
-const usd = (n?: number) => (n === undefined ? "" : `$${n >= 1000 ? Math.round(n).toLocaleString() : n.toFixed(2)}`);
+const usd = (n?: number) => (n === undefined ? "" : `$${n >= 1000 ? Math.round(n).toLocaleString("en-US") : n.toFixed(2)}`);
 
 /** Live arrivals board: real tokenized-stock flows on Base and what our agents checked, refreshed every 15 s. */
 export default function LiveFeed() {

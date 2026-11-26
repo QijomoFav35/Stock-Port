@@ -12,7 +12,7 @@ import { DUST_MAX_TOKENS, MIN_DUST_PORT_USDC } from "@/lib/constants";
 const ATTEST_KEY = "sp_attest_non_us";
 const THRESHOLD_KEY = "sp_dust_threshold";
 const THRESHOLDS = [1, 10, 100, 1000];
-const usd = (n: number) => (n < 0.01 ? "<$0.01" : `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`);
+const usd = (n: number) => (n < 0.01 ? "<$0.01" : `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`);
 
 function StatusText({ s }: { s?: TokenStatus }) {
   if (!s) return <span style={{ color: "var(--g60)" }}>Liquid</span>;
@@ -115,7 +115,7 @@ export default function DustCard({ geoBlocked }: { geoBlocked: boolean }) {
                   } catch {}
                 }}
               >
-                ${t.toLocaleString()}
+                ${t.toLocaleString("en-US")}
               </button>
             ))}
           </div>
@@ -139,7 +139,7 @@ export default function DustCard({ geoBlocked }: { geoBlocked: boolean }) {
 
         {dust.phase !== "scanning" && visible.length === 0 && dust.phase !== "error" && (
           <p style={{ padding: "20px 24px", borderTop: "1px solid var(--line)", color: "var(--g60)", fontSize: 14, margin: 0 }}>
-            No dust under ${threshold.toLocaleString()} found. Try a higher limit.
+            No dust under ${threshold.toLocaleString("en-US")} found. Try a higher limit.
           </p>
         )}
 
@@ -161,7 +161,7 @@ export default function DustCard({ geoBlocked }: { geoBlocked: boolean }) {
                 <span style={{ minWidth: 0, flex: 1 }}>
                   <b style={{ fontWeight: 600 }}>{t.symbol}</b>{" "}
                   <span className="num" style={{ color: "var(--g60)", fontSize: 13 }}>
-                    {Number(t.amount).toLocaleString(undefined, { maximumSignificantDigits: 6 })}
+                    {Number(t.amount).toLocaleString("en-US", { maximumSignificantDigits: 6 })}
                   </span>
                   <span style={{ display: "block", fontSize: 12 }}>
                     <StatusText s={dust.statuses[t.token.toLowerCase()]} />

@@ -10,7 +10,7 @@ import type { PegHealth } from "@/lib/peg";
 export type StockInfo = { symbol: string; name: string; icon?: string; nav?: number; address?: string; decimals?: number };
 
 const LEG_COLORS = ["#0000FF", "#3C8AFF", "#FEA8CD", "#FFD12F", "#B6F569", "#66C800", "#FC401F"];
-const usd = (n: number) => "$" + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const usd = (n: number) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 function Logo({ s, size = 40 }: { s?: StockInfo; size?: number }) {
   return (
