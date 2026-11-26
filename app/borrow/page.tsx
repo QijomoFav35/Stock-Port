@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { GEO_HEADER, isTradingBlocked } from "@/lib/geo";
 import BorrowCard from "@/components/BorrowCard";
 import GuardCard from "@/components/GuardCard";
+import GuardAgent from "@/components/GuardAgent";
 import GateHead from "@/components/GateHead";
 
 export const dynamic = "force-dynamic";
@@ -38,13 +39,16 @@ export default async function BorrowPage() {
           label="Loan Guard"
           title={
             <>
-              A guard that <em>watches your loan.</em>
+              An agent that <em>watches your loan.</em>
             </>
           }
-          sub="Stocks can dump while you sleep, and NAV goes stale when TradFi closes for the weekend. Loan Guard repays from your own USDC reserve before Aave can liquidate you."
+          sub="Stocks can dump while you sleep, and NAV goes stale when TradFi closes for the weekend. The Guard Agent reads live pool prices to see the Monday open coming, and Loan Guard repays from your own USDC reserve before Aave can liquidate you."
         />
         <div className="sec-narrow">
           <GuardCard />
+        </div>
+        <div style={{ marginTop: 24 }}>
+          <GuardAgent />
         </div>
       </section>
     </main>

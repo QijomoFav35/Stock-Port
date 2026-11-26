@@ -29,7 +29,7 @@ export default function StatsPage() {
           </div>
         </div>
         <div className="card pad" style={{ marginTop: 16 }}>
-          <div className="eyebrow">Loan Guard log</div>
+          <div className="eyebrow">Guard Agent log</div>
           <GuardLog />
         </div>
       </section>

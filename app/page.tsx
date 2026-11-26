@@ -1,5 +1,6 @@
 import { UNIVERSE } from "@/lib/baskets";
 import { listTokenizedStocks, type TokenizedStock } from "@/lib/tokenizedStocks";
+import GuardAgent from "@/components/GuardAgent";
 import GatesBoard from "@/components/GatesBoard";
 import Icon from "@/components/Icon";
 import type { IconName } from "@/lib/icons";
@@ -174,6 +175,16 @@ export default async function Home() {
           {track(tickerItems, true)}
         </div>
       </div>
+
+      <section className="wrap sec" style={{ paddingBottom: 8 }}>
+        <div className="gate-head">
+          <h2 className="disp gate-title">
+            The Guard Agent. <em>On duty now.</em>
+          </h2>
+          <p className="gate-sub">It watches every Aave stock loan on Base and reads the weekend before the market does.</p>
+        </div>
+        <GuardAgent compact />
+      </section>
 
       <section className="wrap sec" style={{ paddingBottom: 48 }}>
         <div className="gate-head">

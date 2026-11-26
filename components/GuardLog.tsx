@@ -83,10 +83,10 @@ export default function GuardLog() {
       </div>
       <div style={{ marginTop: 12, fontSize: 13, display: "grid", gap: 6 }}>
         <div className="muted">
-          {GUARD_PREVIEW ? "Guard log · sample data. " : "Guard log. "}
+          {GUARD_PREVIEW ? "Agent log · sample data. " : "Agent log. "}
           {stats.lastCheck
             ? `Last check ${ago(stats.lastCheck.at)}: ${stats.lastCheck.checked} loans, ${stats.lastCheck.atRisk} under trigger.`
-            : "The keeper checks every guarded loan every minute."}
+            : "The Guard Agent checks every guarded loan every minute."}
         </div>
         {recent.map((r) => (
           <div key={r.user + r.at} className="rule" style={{ minHeight: 44, fontSize: 13 }}>

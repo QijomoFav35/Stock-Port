@@ -101,7 +101,7 @@ export default function GuardCard() {
 
   return (
     <section className="card pad">
-      <div className="eyebrow">Loan Guard · auto-repay</div>
+      <div className="eyebrow">Loan Guard · Guard Agent</div>
       <GuardLog />
 
       <div className="eyebrow" style={{ marginTop: 28 }}>
@@ -224,7 +224,7 @@ export default function GuardCard() {
             <input className="input num" inputMode="decimal" placeholder="0" value={fund} onChange={(e) => setFund(e.target.value)} disabled={busy} />
           </label>
           {!rulesOk && <p className="err">Trigger must be at least 1.02, target above trigger (max 3), weekend between them.</p>}
-          {rulesOk && !reserveOk && <p className="err">Add at least 1 USDC to the reserve so the keeper can repay for you.</p>}
+          {rulesOk && !reserveOk && <p className="err">Add at least 1 USDC to the reserve so the Guard Agent can repay for you.</p>}
 
           <div style={{ display: "grid", gap: 8, marginTop: 14 }}>
             <button
