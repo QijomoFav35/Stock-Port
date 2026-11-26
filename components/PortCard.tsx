@@ -71,7 +71,7 @@ export default function PortCard({ geoBlocked, basket }: { geoBlocked: boolean; 
           You&apos;re in.
         </h3>
         <p className="muted" style={{ marginTop: 8 }}>
-          Your bag now matches the Agent&apos;s. ${spent.toFixed(2)} routed via {ROUTE[result.quote.provider]}
+          Your bag now matches the basket. ${spent.toFixed(2)} routed via {ROUTE[result.quote.provider]}
           {result.mode === "batch" ? " in one batched tx." : ` in ${result.txHashes.length} txs.`}
         </p>
         <ShareButtons hashes={result.txHashes} spent={spent} basket={basket} />
@@ -135,7 +135,7 @@ export default function PortCard({ geoBlocked, basket }: { geoBlocked: boolean; 
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
           <span>You get</span>
           <span className="num" style={{ color: "var(--ink)" }}>
-            the Agent&apos;s tokenized stock mix
+            the basket&apos;s tokenized stock mix
           </span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>

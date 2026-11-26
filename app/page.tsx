@@ -1,6 +1,5 @@
 import { UNIVERSE } from "@/lib/baskets";
 import { listTokenizedStocks, type TokenizedStock } from "@/lib/tokenizedStocks";
-import LiveFeed from "@/components/LiveFeed";
 import GatesBoard from "@/components/GatesBoard";
 import Icon from "@/components/Icon";
 import type { IconName } from "@/lib/icons";
@@ -110,8 +109,8 @@ export default async function Home() {
             Your port of entry to <em>Tokenized Stocks.</em>
           </h1>
           <p className="r3 muted" style={{ maxWidth: 620, margin: "22px auto 0", fontSize: 19 }}>
-            Just like an airport, but for stocks. Buy, borrow, rotate and sweep tokenized stocks from one terminal on Base.
-            Open 24/7, every move in one tx, self-custody all the way.
+            Just like an airport, but for stocks. Borrow USDC against your tokenized stocks, and Loan Guard repays before
+            liquidation, even over the weekend. Self-custody all the way, on Base.
           </p>
           <div className="r4" style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 34, flexWrap: "wrap" }}>
             <a href="#routes" className="btn btn-blue">
@@ -176,16 +175,6 @@ export default async function Home() {
         </div>
       </div>
 
-      <section className="wrap sec" style={{ paddingBottom: 8 }}>
-        <div className="gate-head">
-          <h2 className="disp gate-title">
-            Arrivals and departures. <em>Live.</em>
-          </h2>
-          <p className="gate-sub">Real tokenized stock trades on Base and what our agents are checking right now.</p>
-        </div>
-        <LiveFeed />
-      </section>
-
       <section className="wrap sec" style={{ paddingBottom: 48 }}>
         <div className="gate-head">
           <h2 className="disp gate-title">
@@ -196,7 +185,7 @@ export default async function Home() {
           {(
             [
               ["ph-wallet", "Connect your wallet", "Base Account, MetaMask, Rabby, Rainbow or WalletConnect. Your keys never leave your wallet."],
-              ["ph-arrows-left-right", "Pick a route", "Borrow, guard your loan, buy a basket, rotate or sweep dust. Each move is one review and one signature."],
+              ["ph-arrows-left-right", "Borrow and guard", "Borrow USDC against your stocks, then arm Loan Guard with a USDC reserve. Each move is one review and one signature."],
               ["ph-eye", "Verify onchain", "Every tx carries our Builder Code and shows up on Basescan. Don't trust, verify."],
             ] as [IconName, string, string][]
           ).map(([icon, title, body]) => (

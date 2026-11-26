@@ -91,7 +91,7 @@ export default function GuardCard() {
   const tg = num(target);
   const w = weekend.trim() ? num(weekend) : 0;
   const rulesOk = t >= 1.02 && tg > t && tg <= 3 && (w === 0 || (w >= t && w < tg)) && fundRaw >= 0n;
-  // The contract only lists guards holding at least 1 USDC, so the agent can find them.
+  // The contract only lists guards holding at least 1 USDC, so the keeper can find them.
   const reserveAfter = BigInt(g.state?.reserve ?? 0n) + (fundRaw > 0n ? fundRaw : 0n);
   const reserveOk = reserveAfter >= 1_000_000n;
   const valid = rulesOk && reserveOk;
@@ -101,7 +101,7 @@ export default function GuardCard() {
 
   return (
     <section className="card pad">
-      <div className="eyebrow">Loan Guard · agent</div>
+      <div className="eyebrow">Loan Guard · auto-repay</div>
       <GuardLog />
 
       <div className="eyebrow" style={{ marginTop: 28 }}>
@@ -224,7 +224,7 @@ export default function GuardCard() {
             <input className="input num" inputMode="decimal" placeholder="0" value={fund} onChange={(e) => setFund(e.target.value)} disabled={busy} />
           </label>
           {!rulesOk && <p className="err">Trigger must be at least 1.02, target above trigger (max 3), weekend between them.</p>}
-          {rulesOk && !reserveOk && <p className="err">Add at least 1 USDC to the reserve so the agent can repay for you.</p>}
+          {rulesOk && !reserveOk && <p className="err">Add at least 1 USDC to the reserve so the keeper can repay for you.</p>}
 
           <div style={{ display: "grid", gap: 8, marginTop: 14 }}>
             <button

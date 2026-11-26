@@ -39,7 +39,7 @@ function sample(): Stats {
   };
 }
 
-/** Public Agent log for Loan Guard. Totals and top-ups are read onchain; anyone can check them on Basescan. */
+/** Public log for Loan Guard. Totals and top-ups are read onchain; anyone can check them on Basescan. */
 export default function GuardLog() {
   const [stats, setStats] = useState<Stats>();
 
@@ -83,10 +83,10 @@ export default function GuardLog() {
       </div>
       <div style={{ marginTop: 12, fontSize: 13, display: "grid", gap: 6 }}>
         <div className="muted">
-          {GUARD_PREVIEW ? "Agent log · sample data. " : "Agent log. "}
+          {GUARD_PREVIEW ? "Guard log · sample data. " : "Guard log. "}
           {stats.lastCheck
             ? `Last check ${ago(stats.lastCheck.at)}: ${stats.lastCheck.checked} loans, ${stats.lastCheck.atRisk} under trigger.`
-            : "The agent checks every guarded loan every few minutes."}
+            : "The keeper checks every guarded loan every minute."}
         </div>
         {recent.map((r) => (
           <div key={r.user + r.at} className="rule" style={{ minHeight: 44, fontSize: 13 }}>

@@ -2,7 +2,7 @@ import Icon from "@/components/Icon";
 import type { IconName } from "@/lib/icons";
 import { DRIFT_GUARD_ON, NAV_DRIFT_MAX_PCT } from "@/lib/peg";
 
-/** Only rules the code enforces today are "Live". Agent rules stay "Soon" until the Agent ships. */
+/** Only rules the code enforces today are "Live". */
 const RULES: { icon: IconName; title: string; body: string; live: boolean }[] = [
   { icon: "ph-wallet", title: "Self-custody", body: "Tokens land in your wallet. Stock Port never holds your funds.", live: true },
   { icon: "ph-shield-check", title: "Exact approvals", body: "You approve exactly what you spend. No infinite approval.", live: true },
@@ -13,14 +13,13 @@ const RULES: { icon: IconName; title: string; body: string; live: boolean }[] = 
     live: DRIFT_GUARD_ON,
   },
   { icon: "ph-eye", title: "Verified contracts only", body: "Every call is checked against an allowlist before your wallet opens.", live: true },
-  { icon: "ph-clock", title: "Rebalance cap", body: "The Agent moves at most 25% of the basket per day.", live: false },
   { icon: "ph-receipt", title: "Split and dividend aware", body: "Holdings read with B20 scaledBalanceOf, so splits don't skew your balance.", live: false },
 ];
 
 export default function Guardrails() {
   return (
     <div className="card pad">
-      <div className="eyebrow">Agent guardrails</div>
+      <div className="eyebrow">Guardrails</div>
       <div className="disp card-title">
         Hard rules, <em>enforced in code.</em>
       </div>

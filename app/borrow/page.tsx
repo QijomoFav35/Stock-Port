@@ -38,7 +38,7 @@ export default async function BorrowPage() {
           label="Loan Guard"
           title={
             <>
-              An agent that <em>watches your loan.</em>
+              A guard that <em>watches your loan.</em>
             </>
           }
           sub="Stocks can dump while you sleep, and NAV goes stale when TradFi closes for the weekend. Loan Guard repays from your own USDC reserve before Aave can liquidate you."

@@ -48,7 +48,7 @@ export default function ReviewPanel({ plan, onConfirm, onCancel }: { plan: PortP
         {fmtUsd(plan.totalUsdc)}
       </div>
       <div style={{ textAlign: "center", fontSize: 14, color: "var(--g60)", display: "flex", gap: 6, justifyContent: "center", alignItems: "center" }}>
-        <Icon name="tok-usdc" size={16} /> USDC into the Agent&apos;s basket via {ROUTE[plan.provider]}
+        <Icon name="tok-usdc" size={16} /> USDC into the basket via {ROUTE[plan.provider]}
       </div>
 
       <div style={{ marginTop: 16, fontWeight: 600 }}>You&apos;ll sign</div>
