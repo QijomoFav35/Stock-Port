@@ -50,7 +50,7 @@ export default function LiveFeed() {
   }, []);
 
   return (
-    <div className="card pad live">
+    <div className="card pad live-card">
       <div className="live-head">
         <span className="live-dot" aria-hidden="true" />
         <span className="eyebrow">Live on Base</span>
