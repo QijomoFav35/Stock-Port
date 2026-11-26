@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { basescanTx } from "@/lib/txGuard";
 import type { UsageSummary, UsageKind } from "@/lib/usage";
 
-const KIND: Record<UsageKind, string> = { trade: "Basket or sweep", borrow: "Aave V4 loan", guard: "Loan Guard" };
+const KIND: Record<UsageKind, string> = { trade: "Basket or sweep", borrow: "Aave V4 loan", guard: "Loan Guard", autopilot: "AutoPilot agent" };
 
 function ago(ms: number) {
   const s = Math.max(0, Math.round(ms / 1000));
@@ -41,7 +41,7 @@ export default function UsageBoard() {
   if (!u) return <p className="muted">Reading Base…</p>;
   if (!u.configured) return <p className="muted">Usage tracking starts at launch.</p>;
 
-  const by = u.byKind ?? { trade: 0, borrow: 0, guard: 0 };
+  const by = u.byKind ?? { trade: 0, borrow: 0, guard: 0, autopilot: 0 };
   const recent = u.recent ?? [];
   return (
     <div>
@@ -58,7 +58,7 @@ export default function UsageBoard() {
         ))}
       </div>
       <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
-        {by.trade} basket or sweep txs · {by.borrow} Aave V4 loan txs · {by.guard} Loan Guard txs.{" "}
+        {by.trade} basket or sweep txs · {by.borrow} Aave V4 loan txs · {by.guard} Loan Guard txs · {by.autopilot} AutoPilot txs.{" "}
         {u.behind && u.behind > 1000 ? "Still catching up with the latest blocks." : `Up to date as of block ${u.scannedTo?.toLocaleString("en-US")}.`}
       </p>
       <div style={{ display: "grid", gap: 6, marginTop: 12 }}>

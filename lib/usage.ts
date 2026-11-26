@@ -5,7 +5,7 @@
  * 1. Read all logs from the contracts our txs touch (the 14 tokenized stocks, the Aave V4 spoke, LoanGuard),
  *    from STATS_FROM_BLOCK to the latest block.
  * 2. For each tx in those logs, fetch its calldata and keep it only if it carries our Builder Code (ERC-8021).
- * 3. Classify by which contract emitted logs: LoanGuard = "guard", Aave spoke = "borrow", otherwise "trade".
+ * 3. Classify by which contract emitted logs: LoanGuard = "guard", AutoPilot = "autopilot", Aave spoke = "borrow", otherwise "trade".
  *
  * Anyone can repeat this with a block explorer, so the numbers can't be faked. State lives in server memory and is
  * rebuilt from the chain after a restart.
@@ -14,11 +14,12 @@ import { getAddress, type Address, type Hex } from "viem";
 import { publicClient } from "@/lib/publicClient";
 import { AAVE_SPOKE } from "@/lib/aave";
 import { LOAN_GUARD } from "@/lib/loanGuard";
+import { AUTOPILOT } from "@/lib/autopilotContract";
 import { UNIVERSE } from "@/lib/baskets";
 import { listTokenizedStocks } from "@/lib/tokenizedStocks";
 import { DATA_SUFFIX, hasBuilderCode } from "@/lib/attribution";
 
-export type UsageKind = "trade" | "borrow" | "guard";
+export type UsageKind = "trade" | "borrow" | "guard" | "autopilot";
 export type UsageTx = { hash: Hex; kind: UsageKind; wallet: Address; block: number };
 
 /** ERC-4337 EntryPoints (v0.6, v0.7). Smart wallet txs are sent by a bundler, so the wallet comes from the UserOp event. */
@@ -50,7 +51,7 @@ export const STATS_FROM_BLOCK = process.env.STATS_FROM_BLOCK ? BigInt(process.en
 async function watchList(): Promise<Address[]> {
   const all = await listTokenizedStocks();
   const stocks = all.filter((t) => (UNIVERSE as readonly string[]).includes(t.symbol)).map((t) => getAddress(t.contract_address));
-  return [...stocks, AAVE_SPOKE, ...(LOAN_GUARD ? [LOAN_GUARD] : [])];
+  return [...stocks, AAVE_SPOKE, ...(LOAN_GUARD ? [LOAN_GUARD] : []), ...(AUTOPILOT ? [AUTOPILOT] : [])];
 }
 
 function carriesCode(input: Hex): boolean {
@@ -64,14 +65,21 @@ async function inspect(hash: Hex, emitters: Set<string>, block: bigint, st: Stat
   const tx = await publicClient.getTransaction({ hash });
   if (!carriesCode(tx.input)) return;
   const kind: UsageKind =
-    LOAN_GUARD && emitters.has(LOAN_GUARD.toLowerCase()) ? "guard" : emitters.has(AAVE_SPOKE.toLowerCase()) ? "borrow" : "trade";
+    LOAN_GUARD && emitters.has(LOAN_GUARD.toLowerCase())
+      ? "guard"
+      : AUTOPILOT && emitters.has(AUTOPILOT.toLowerCase())
+        ? "autopilot"
+        : emitters.has(AAVE_SPOKE.toLowerCase())
+          ? "borrow"
+          : "trade";
+  // Loan Guard and AutoPilot: every event's first indexed field is the user it acts for.
+  const agentContract = kind === "guard" ? LOAN_GUARD : kind === "autopilot" ? AUTOPILOT : undefined;
   let wallet: Address = tx.from;
   const viaEntryPoint = !!tx.to && ENTRYPOINTS.has(tx.to.toLowerCase());
-  if (viaEntryPoint || kind === "guard") {
+  if (viaEntryPoint || agentContract) {
     const rc = await publicClient.getTransactionReceipt({ hash });
-    // Loan Guard: every event's first indexed field is the user it acts for. A keeper top-up is sent by
-    // the keeper wallet, but it counts for the user whose loan was protected.
-    const guardLog = kind === "guard" ? rc.logs.find((l) => LOAN_GUARD && l.address.toLowerCase() === LOAN_GUARD.toLowerCase() && l.topics[1]) : undefined;
+    // A keeper top-up or agent rebalance is sent by the agent wallet, but it counts for the user it acted for.
+    const guardLog = agentContract ? rc.logs.find((l) => l.address.toLowerCase() === agentContract.toLowerCase() && l.topics[1]) : undefined;
     const op = rc.logs.find((l) => l.topics[0] === USER_OP_EVENT && l.topics[2]);
     const topic = guardLog?.topics[1] ?? (viaEntryPoint ? op?.topics[2] : undefined);
     if (topic) wallet = getAddress(`0x${topic.slice(26)}`);
@@ -132,7 +140,7 @@ export async function getUsage(): Promise<UsageSummary> {
   await st.running;
 
   const list = [...st.txs.values()].sort((a, b) => b.block - a.block);
-  const byKind: Record<UsageKind, number> = { trade: 0, borrow: 0, guard: 0 };
+  const byKind: Record<UsageKind, number> = { trade: 0, borrow: 0, guard: 0, autopilot: 0 };
   for (const t of list) byKind[t.kind]++;
   const scannedTo = st.cursor - 1n;
   return {

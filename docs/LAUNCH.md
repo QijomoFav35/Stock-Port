@@ -7,10 +7,10 @@
 
 ## Render environment (Dashboard → your service → Environment)
 Server only: `BASE_RPC_URL`, `ALCHEMY_API_KEY`, `ZEROX_API_KEY`, `O1_API_KEY`, `IPINFO_TOKEN`, `GEO_SOURCE=ipinfo`,
-`STATS_FROM_BLOCK` (launch block, for /stats), `CDP_PAYMASTER_URL` (optional), `FEEDBACK_WEBHOOK_URL` (optional), `KEEPER_PRIVATE_KEY`, `KEEPER_CRON_SECRET`, `BANKR_API_KEY` (later).
+`STATS_FROM_BLOCK` (launch block, for /stats), `CDP_PAYMASTER_URL` (optional), `FEEDBACK_WEBHOOK_URL` (optional), `KEEPER_PRIVATE_KEY`, `KEEPER_CRON_SECRET`, `AUTOPILOT_AGENT_KEY` (optional, defaults to the keeper key), `BANKR_API_KEY` (later).
 
 Public: `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_BASE_BUILDER_CODE`, `NEXT_PUBLIC_LOAN_GUARD_ADDRESS`,
-`NEXT_PUBLIC_LOAN_GUARD_FROM_BLOCK`, analytics ids. Never set `NEXT_PUBLIC_GUARD_PREVIEW` on Render.
+`NEXT_PUBLIC_LOAN_GUARD_FROM_BLOCK`, `NEXT_PUBLIC_AUTOPILOT_ADDRESS`, `NEXT_PUBLIC_AUTOPILOT_FROM_BLOCK`, analytics ids. Never set `NEXT_PUBLIC_GUARD_PREVIEW` on Render.
 
 Rule: anything starting with `NEXT_PUBLIC_` ends up in the browser. Keys never get that prefix.
 
@@ -34,8 +34,17 @@ gas credits on other contracts.
 - **Loan Guard contract:** it has no owner and can't be paused or upgraded. To stop new sign-ups, remove
   `NEXT_PUBLIC_LOAN_GUARD_ADDRESS` and redeploy: the card shows "Launching soon" and the keeper stops. Users can always call
   `withdraw` on the contract from Basescan to take their reserve back.
-- **Keeper misbehaving:** pause the Render cron job. Nothing else depends on it.
+- **AutoPilot contract:** no owner, no pause. Each user can switch their agent off (`setPilot` with on = false) or call `exit()`
+  on Basescan at any time. To stop new sign-ups, remove `NEXT_PUBLIC_AUTOPILOT_ADDRESS` and redeploy.
+- **Keeper or AutoPilot agent misbehaving:** pause its Render cron job (`/api/guard/keeper` or `/api/autopilot/run`). The
+  contracts cap what a bad agent key can do: one move per user interval (at least an hour), USDC to allowed stocks and back
+  only, and every swap within the user's slippage cap of Chainlink NAV. Rotate the key and users keep their funds.
 - **A leaked key:** rotate it at the provider first, then update Render and `.env.local`, then redeploy.
+
+## Cron jobs (Render → New → Cron Job, every 5 minutes)
+Both send `Authorization: Bearer $KEEPER_CRON_SECRET`:
+- `curl -s -X POST -H "Authorization: Bearer $KEEPER_CRON_SECRET" https://YOUR-SITE/api/guard/keeper`
+- `curl -s -X POST -H "Authorization: Bearer $KEEPER_CRON_SECRET" https://YOUR-SITE/api/autopilot/run`
 
 ## Data and backups
 There is no database and no user accounts. All state is onchain (Aave, LoanGuard, token balances) or in the git repo, so

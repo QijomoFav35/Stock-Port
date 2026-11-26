@@ -10,6 +10,7 @@ import { decodeFunctionData, getAddress, parseAbi, toFunctionSelector, type Addr
 import { KNOWN_CONTRACTS } from "@/lib/txGuard";
 import { AAVE_SPOKE } from "@/lib/aave";
 import { LOAN_GUARD } from "@/lib/loanGuard";
+import { AUTOPILOT } from "@/lib/autopilotContract";
 import { UNIVERSE } from "@/lib/baskets";
 import { listTokenizedStocks } from "@/lib/tokenizedStocks";
 
@@ -36,7 +37,7 @@ async function stockTokens(): Promise<Set<string>> {
 /** Contracts that may be called directly or approved as a spender. */
 function spenders(): Set<string> {
   return new Set(
-    [KNOWN_CONTRACTS.aerodromeRouter.address, KNOWN_CONTRACTS.zeroExAllowanceHolder.address, KNOWN_CONTRACTS.permit2.address, AAVE_SPOKE, ...(LOAN_GUARD ? [LOAN_GUARD] : [])].map(
+    [KNOWN_CONTRACTS.aerodromeRouter.address, KNOWN_CONTRACTS.zeroExAllowanceHolder.address, KNOWN_CONTRACTS.permit2.address, AAVE_SPOKE, ...(LOAN_GUARD ? [LOAN_GUARD] : []), ...(AUTOPILOT ? [AUTOPILOT] : [])].map(
       (a) => a.toLowerCase(),
     ),
   );

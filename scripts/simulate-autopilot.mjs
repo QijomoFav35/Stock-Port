@@ -7,7 +7,8 @@
  *
  * A test wallet gets 100 USDC through a state override. It deposits, writes rules, and picks an agent.
  * The agent buys NVDAc and sells it back through Aerodrome. Then we check that the guard rails hold:
- * a stranger can't rebalance, the interval rule blocks a second trade, and exit() returns everything.
+ * a stranger can't rebalance, the interval rule blocks a second trade, rules need at least an hour between trades,
+ * and exit() returns everything.
  */
 import { readFileSync } from "node:fs";
 import { encodeFunctionData, decodeFunctionResult, getContractAddress, getAddress, keccak256, encodeAbiParameters, pad, toHex, formatUnits } from "viem";
@@ -63,7 +64,7 @@ const setup = [
   { from: DEPLOYER, data: deployData },
   call(USER, USDC, erc20, "approve", [AP, DEPOSIT]),
   call(USER, AP, abi, "deposit", [USDC, DEPOSIT]),
-  call(USER, AP, abi, "setPilot", rules(0)),
+  call(USER, AP, abi, "setPilot", rules(3600)),
 ];
 let tick;
 for (const t of [1, 10, 50, 100, 200, 2000]) {
@@ -80,14 +81,15 @@ const steps = [
   ["deploy", ...setup.slice(0, 1)],
   ["approve USDC", setup[1]],
   ["deposit 100 USDC", setup[2]],
-  ["set rules + agent", setup[3]],
+  ["set rules + agent (1-hour interval)", setup[3]],
   ["agent buys 50 USDC of NVDAc", call(AGENT, AP, abi, "rebalance", [USER, [{ tokenIn: USDC, tokenOut: NVDA, amountIn: BUY, tickSpacing: tick }]])],
   ["NVDAc balance", call(AGENT, AP, abi, "balances", [USER, NVDA])],
   ["stranger tries to rebalance (must revert)", call(STRANGER, AP, abi, "rebalance", [USER, [{ tokenIn: USDC, tokenOut: NVDA, amountIn: 1n, tickSpacing: tick }]])],
-  ["user sets a 1-hour interval", call(USER, AP, abi, "setPilot", rules(3600))],
   ["agent trades again too soon (must revert)", call(AGENT, AP, abi, "rebalance", [USER, [{ tokenIn: USDC, tokenOut: NVDA, amountIn: 1n, tickSpacing: tick }]])],
+  ["rules with no wait between trades (must revert)", call(USER, AP, abi, "setPilot", rules(0))],
   ["user exits", call(USER, AP, abi, "exit", [])],
   ["USDC left inside", call(AGENT, AP, abi, "balances", [USER, USDC])],
+  ["NVDAc left inside", call(AGENT, AP, abi, "balances", [USER, NVDA])],
 ];
 const r = await simulate(steps.map((s) => s[1]));
 const ok = (i) => r[i].status === "0x1";
@@ -95,8 +97,9 @@ steps.forEach(([name], i) => console.log(`${ok(i) ? "ok " : "REV"} ${name}${r[i]
 
 const nvda = decodeFunctionResult({ abi, functionName: "balances", data: r[5].returnData });
 const left = decodeFunctionResult({ abi, functionName: "balances", data: r[10].returnData });
-console.log(`\nPool tick spacing ${tick}. Bought ${formatUnits(nvda, 8)} NVDAc for 50 USDC. After exit, USDC left inside: ${formatUnits(left, 6)}.`);
+const leftNvda = decodeFunctionResult({ abi, functionName: "balances", data: r[11].returnData });
+console.log(`\nPool tick spacing ${tick}. Bought ${formatUnits(nvda, 8)} NVDAc for 50 USDC. After exit, left inside: ${formatUnits(left, 6)} USDC, ${formatUnits(leftNvda, 8)} NVDAc.`);
 
-const pass = [0, 1, 2, 3, 4, 5, 7, 9, 10].every(ok) && !ok(6) && !ok(8) && nvda > 0n && left === 0n;
-console.log(pass ? "\nPASS: agent traded within the rules, strangers and early trades were refused, and exit returned everything." : "\nFAIL: see the lines above.");
+const pass = [0, 1, 2, 3, 4, 5, 9, 10, 11].every(ok) && !ok(6) && !ok(7) && !ok(8) && nvda > 0n && left === 0n && leftNvda === 0n;
+console.log(pass ? "\nPASS: agent traded within the rules, strangers, early trades and no-wait rules were refused, and exit returned everything." : "\nFAIL: see the lines above.");
 process.exit(pass ? 0 : 1);

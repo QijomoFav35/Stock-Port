@@ -56,6 +56,8 @@ contract AutoPilot {
     /// Chainlink stock feeds hold over weekends and holidays, so allow up to 4 days.
     uint256 public constant MAX_FEED_AGE = 4 days;
     uint256 public constant MIN_DEPOSIT = 1e6; // 1 USDC to join the agent's list
+    /// At least an hour between agent trades, so even a leaked agent key can't churn your balance.
+    uint256 public constant MIN_INTERVAL = 1 hours;
 
     struct Stock {
         address feed;
@@ -146,7 +148,9 @@ contract AutoPilot {
         uint16 cutAtBps,
         uint32 minInterval
     ) external {
-        if (maxSlippageBps == 0 || maxSlippageBps > MAX_SLIPPAGE_BPS || cutAtBps > 9000) revert BadRules();
+        if (maxSlippageBps == 0 || maxSlippageBps > MAX_SLIPPAGE_BPS || cutAtBps > 9000 || minInterval < MIN_INTERVAL) {
+            revert BadRules();
+        }
         Pilot storage p = pilots[msg.sender];
         p.agent = agent;
         p.on = on;

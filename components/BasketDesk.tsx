@@ -173,6 +173,7 @@ export default function BasketDesk({
             <AutoPilotCard
               baskets={baskets}
               stocks={stocks}
+              geoBlocked={geoBlocked}
               onApprove={(from, to) => {
                 pick(to);
                 setRotateFrom(from || undefined);
