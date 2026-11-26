@@ -3,7 +3,7 @@ import Icon from "@/components/Icon";
 
 const REPO = "https://github.com/QijomoFav35/Stock-Port";
 
-/** Short answer to "can this app drain my wallet?" Shown on the buy and sweep cards. */
+/** Short answer to "can this app drain my wallet?" Shown on the buy card. */
 export default function SafetyNote() {
   return (
     <details style={{ marginTop: 16, fontSize: 13, color: "var(--g60)" }}>

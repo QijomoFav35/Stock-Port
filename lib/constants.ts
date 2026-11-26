@@ -12,14 +12,6 @@ export const USDC_DECIMALS = 6;
 export const MIN_PORT_USDC = 5;
 /** A dust sweep can buy the basket with less, since the user is cleaning up leftovers. */
 export const MIN_DUST_PORT_USDC = 1;
-/** Dust scan lists priced tokens up to this USD value; the UI threshold chips filter further. */
-export const DUST_MAX_USD = 1000;
-/** Skip a dust token if its swap would lose more than this share of its value (Rabby uses 10%). */
-export const DUST_MAX_IMPACT_BPS = 1000;
-/** Skip a dust token if its swap gas costs more than this (Rabby uses $0.10 on L2s). */
-export const DUST_MAX_GAS_USD = 0.1;
-/** Most tokens one sweep handles. */
-export const DUST_MAX_TOKENS = 20;
 /** Guess: per-port cap to limit damage while liquidity is unproven. Tune after first mainnet tests. */
 export const MAX_PORT_USDC = Number(process.env.NEXT_PUBLIC_MAX_PORT_USDC ?? 500);
 

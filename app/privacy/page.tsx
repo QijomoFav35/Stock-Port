@@ -33,7 +33,7 @@ export default function PrivacyPage() {
           regions. On our host we look it up with ipinfo.io. We don&apos;t store it beyond a short in-memory cache.
         </li>
         <li>
-          <b>Your wallet address and amounts</b>, when you ask for a quote, a Dust Sweep scan or a borrow preview, so we can build the tx.
+          <b>Your wallet address and amounts</b>, when you ask for a quote or a borrow preview, so we can build the tx.
         </li>
         <li>
           <b>Standard server logs</b> (time, page, status) kept by our host for debugging and abuse prevention.
@@ -43,7 +43,6 @@ export default function PrivacyPage() {
       <h2>Services that handle your requests</h2>
       <p>To quote, route and read onchain data, requests go to these providers. Each has its own privacy policy.</p>
       <ul>
-        <li>Alchemy (blockchain data and wallet balances for Dust Sweep)</li>
         <li>o1 Exchange, Aerodrome and 0x (swap quotes; they see the wallet address and amount)</li>
         <li>Aave (lending market data), Chainlink (NAV feeds), Coinbase (tokenized stock list)</li>
         <li>ipinfo.io (country check)</li>

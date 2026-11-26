@@ -6,7 +6,7 @@
 3. Tag the commit you are about to ship: `git tag release-YYYY-MM-DD && git push origin --tags`.
 
 ## Render environment (Dashboard → your service → Environment)
-Server only: `BASE_RPC_URL`, `ALCHEMY_API_KEY`, `ZEROX_API_KEY`, `O1_API_KEY`, `IPINFO_TOKEN`, `GEO_SOURCE=ipinfo`,
+Server only: `BASE_RPC_URL`, `ZEROX_API_KEY`, `O1_API_KEY`, `IPINFO_TOKEN`, `GEO_SOURCE=ipinfo`,
 `STATS_FROM_BLOCK` (launch block, for /stats), `CDP_PAYMASTER_URL` (optional), `FEEDBACK_WEBHOOK_URL` (optional), `KEEPER_PRIVATE_KEY`, `KEEPER_CRON_SECRET`, `AUTOPILOT_AGENT_KEY` (its own wallet, never the keeper key), `BANKR_API_KEY` (later).
 
 Public: `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_BASE_BUILDER_CODE`, `NEXT_PUBLIC_LOAN_GUARD_ADDRESS`,
@@ -22,7 +22,7 @@ gas credits on other contracts.
 - Faked IP test: `curl -s -H "x-forwarded-for: 8.8.8.8" -H "cf-connecting-ip: 8.8.8.8" -H "x-real-ip: 8.8.8.8" -H "true-client-ip: 8.8.8.8" https://YOUR-SITE/api/geo`
   must still show your own country, not `US`. The app trusts only the last x-forwarded-for entry (added by Render's
   proxy). If it shows `US`, set `CLIENT_IP_HEADER` on Render to the header that Render itself sets, redeploy and test again.
-- Home, /borrow, /baskets, /sweep, /race, /next and /privacy load on desktop and on a phone.
+- Home, /borrow, /baskets, /stats, /next and /privacy load on desktop and on a phone.
 - Browser devtools → Network: no request contains your Alchemy key (browser reads go to `/api/rpc`).
 - `/robots.txt` and `/sitemap.xml` show the live domain.
 - One small real tx (e.g. a $5 basket), then check it on Basescan and with the Builder Code checker.

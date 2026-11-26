@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { useAccount, useWalletClient } from "wagmi";
 import { formatUnits, parseUnits } from "viem";
 import ConnectButton from "@/components/ConnectButton";
-import GuardLog from "@/components/GuardLog";
 import { useLoanGuard, type GuardState } from "@/hooks/useLoanGuard";
 import { GUARD_PREVIEW, LOAN_GUARD } from "@/lib/loanGuard";
 import { basescanAddress } from "@/lib/txGuard";
@@ -101,12 +100,8 @@ export default function GuardCard() {
 
   return (
     <section className="card pad">
-      <div className="eyebrow">Loan Guard · Guard Agent</div>
-      <GuardLog />
-
-      <div className="eyebrow" style={{ marginTop: 28 }}>
-        Your guard
-      </div>
+      {/* The Guard Agent's log sits next to this card on /borrow; onchain totals are on /stats. */}
+      <div className="eyebrow">Loan Guard · Your guard</div>
       {!g.deployed ? (
         <p className="muted" style={{ marginTop: 10, fontSize: 14 }}>
           Launching soon. The contract is being deployed on Base.

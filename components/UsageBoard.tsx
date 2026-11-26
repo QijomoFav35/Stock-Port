@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { basescanTx } from "@/lib/txGuard";
 import type { UsageSummary, UsageKind } from "@/lib/usage";
 
-const KIND: Record<UsageKind, string> = { trade: "Basket or sweep", borrow: "Aave V4 loan", guard: "Loan Guard", autopilot: "AutoPilot agent" };
+const KIND: Record<UsageKind, string> = { trade: "Basket buy or rotate", borrow: "Aave V4 loan", guard: "Loan Guard", autopilot: "AutoPilot agent" };
 
 function ago(ms: number) {
   const s = Math.max(0, Math.round(ms / 1000));
@@ -58,7 +58,7 @@ export default function UsageBoard() {
         ))}
       </div>
       <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
-        {by.trade} basket or sweep txs · {by.borrow} Aave V4 loan txs · {by.guard} Loan Guard txs · {by.autopilot} AutoPilot txs.{" "}
+        {by.trade} basket txs · {by.borrow} Aave V4 loan txs · {by.guard} Loan Guard txs · {by.autopilot} AutoPilot txs.{" "}
         {u.behind && u.behind > 1000 ? "Still catching up with the latest blocks." : `Up to date as of block ${u.scannedTo?.toLocaleString("en-US")}.`}
       </p>
       <div style={{ display: "grid", gap: 6, marginTop: 12 }}>
