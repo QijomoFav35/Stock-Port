@@ -43,8 +43,22 @@ export async function runKeeper(): Promise<KeeperRun> {
   }
 }
 
+/** Users whose guard still holds USDC. Empty guards can't repay anything, so the keeper skips them. */
+async function listFundedUsers(guard: Address): Promise<Address[]> {
+  const all = await listGuardedUsers();
+  if (!all.length) return [];
+  const gs = await publicClient.multicall({
+    allowFailure: true,
+    contracts: all.map((u) => ({ address: guard, abi: loanGuardAbi, functionName: "guards", args: [u] }) as const),
+  });
+  return all.filter((_, i) => {
+    const r = gs[i];
+    return r.status === "success" && (r.result as unknown as readonly bigint[])[0] > 0n;
+  });
+}
+
 async function keeperPass(guard: Address): Promise<KeeperRun> {
-  const users = await listGuardedUsers();
+  const users = await listFundedUsers(guard);
   const checks = await publicClient.multicall({
     allowFailure: true,
     contracts: users.map((u) => ({ address: guard, abi: loanGuardAbi, functionName: "check", args: [u] }) as const),

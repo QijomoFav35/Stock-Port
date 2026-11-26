@@ -56,20 +56,26 @@ async function watchList(): Promise<Address[]> {
 function carriesCode(input: Hex): boolean {
   if (hasBuilderCode(input)) return true;
   // Smart wallet batches: the suffix sits on the UserOp calldata inside handleOps, not at the very end.
+  // The suffix ends with the 16-byte ERC-8021 marker, so a match means our full code plus marker is present.
   return !!DATA_SUFFIX && input.toLowerCase().includes(DATA_SUFFIX.slice(2).toLowerCase());
 }
 
 async function inspect(hash: Hex, emitters: Set<string>, block: bigint, st: State) {
   const tx = await publicClient.getTransaction({ hash });
   if (!carriesCode(tx.input)) return;
-  let wallet: Address = tx.from;
-  if (tx.to && ENTRYPOINTS.has(tx.to.toLowerCase())) {
-    const rc = await publicClient.getTransactionReceipt({ hash });
-    const op = rc.logs.find((l) => l.topics[0] === USER_OP_EVENT && l.topics[2]);
-    if (op?.topics[2]) wallet = getAddress(`0x${op.topics[2].slice(26)}`);
-  }
   const kind: UsageKind =
     LOAN_GUARD && emitters.has(LOAN_GUARD.toLowerCase()) ? "guard" : emitters.has(AAVE_SPOKE.toLowerCase()) ? "borrow" : "trade";
+  let wallet: Address = tx.from;
+  const viaEntryPoint = !!tx.to && ENTRYPOINTS.has(tx.to.toLowerCase());
+  if (viaEntryPoint || kind === "guard") {
+    const rc = await publicClient.getTransactionReceipt({ hash });
+    // Loan Guard: every event's first indexed field is the user it acts for. A keeper top-up is sent by
+    // the keeper wallet, but it counts for the user whose loan was protected.
+    const guardLog = kind === "guard" ? rc.logs.find((l) => LOAN_GUARD && l.address.toLowerCase() === LOAN_GUARD.toLowerCase() && l.topics[1]) : undefined;
+    const op = rc.logs.find((l) => l.topics[0] === USER_OP_EVENT && l.topics[2]);
+    const topic = guardLog?.topics[1] ?? (viaEntryPoint ? op?.topics[2] : undefined);
+    if (topic) wallet = getAddress(`0x${topic.slice(26)}`);
+  }
   st.txs.set(hash, { hash, kind, wallet, block: Number(block) });
 }
 

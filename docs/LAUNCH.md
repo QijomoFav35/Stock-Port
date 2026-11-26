@@ -19,6 +19,9 @@ gas credits on other contracts.
 
 ## After every deploy (5 minutes)
 - `/api/geo` shows your country and `tradingBlocked: false` (and `true` from a US VPN).
+- Faked IP test: `curl -s -H "cf-connecting-ip: 8.8.8.8" -H "x-real-ip: 8.8.8.8" -H "true-client-ip: 8.8.8.8" https://YOUR-SITE/api/geo`
+  must still show your own country, not `US`. If it shows `US`, set `CLIENT_IP_HEADER` on Render to the header that
+  Render itself sets, redeploy and test again.
 - Home, /borrow, /baskets, /sweep, /race, /next and /privacy load on desktop and on a phone.
 - Browser devtools → Network: no request contains your Alchemy key (browser reads go to `/api/rpc`).
 - `/robots.txt` and `/sitemap.xml` show the live domain.

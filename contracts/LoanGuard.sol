@@ -12,7 +12,8 @@ pragma solidity ^0.8.24;
  *
  * Weekend shield: Aave's stock prices come from Chainlink feeds that update 24/5, so a gap at the
  * Monday open can liquidate a loan with no warning. Users can set a higher weekend trigger that
- * applies from Friday 20:00 UTC to Sunday 23:00 UTC, so the guard tops up before the open.
+ * applies from Friday 20:00 UTC to Monday 01:00 UTC and on US market holidays (NYSE calendar
+ * through 2027), so the guard tops up before the open.
  *
  * What this contract can do with your money: repay YOUR Aave USDC debt, or send your reserve back
  * to YOU. Nothing else. It never touches your stock collateral, holds no admin keys, and has no
@@ -69,6 +70,8 @@ contract LoanGuard {
 
     uint256 public constant MIN_TRIGGER = 1.02e18;
     uint256 public constant MAX_TARGET = 3e18;
+    /// A guard joins the keeper list only once it holds at least 1 USDC, so empty sign-ups can't bloat it.
+    uint256 public constant MIN_RESERVE = 1e6;
 
     struct Guard {
         uint128 reserve; // USDC (6 decimals) parked for this user
@@ -79,7 +82,7 @@ contract LoanGuard {
     }
 
     mapping(address => Guard) public guards;
-    /// Everyone who ever armed a guard, so keepers can find positions without an indexer.
+    /// Everyone who ever funded a guard with at least MIN_RESERVE, so keepers can find positions without an indexer.
     address[] public users;
     mapping(address => bool) private known;
     uint256 public totalRepaid;
@@ -112,10 +115,6 @@ contract LoanGuard {
     function configure(uint256 trigger, uint256 target, uint256 weekendTrigger) external {
         if (trigger < MIN_TRIGGER || target <= trigger || target > MAX_TARGET) revert BadConfig();
         if (weekendTrigger != 0 && (weekendTrigger < trigger || weekendTrigger >= target)) revert BadConfig();
-        if (!known[msg.sender]) {
-            known[msg.sender] = true;
-            users.push(msg.sender);
-        }
         Guard storage g = guards[msg.sender];
         g.trigger = uint64(trigger);
         g.target = uint64(target);
@@ -128,6 +127,10 @@ contract LoanGuard {
         if (!USDC.transferFrom(msg.sender, address(this), amount)) revert TransferFailed();
         Guard storage g = guards[msg.sender];
         g.reserve = uint128(uint256(g.reserve) + amount);
+        if (!known[msg.sender] && g.reserve >= MIN_RESERVE) {
+            known[msg.sender] = true;
+            users.push(msg.sender);
+        }
         emit Funded(msg.sender, amount, g.reserve);
     }
 
@@ -146,11 +149,30 @@ contract LoanGuard {
 
     // ---------------------------------------------------------------- the guard
 
-    /// True from Friday 20:00 UTC to Sunday 23:00 UTC, when stock price feeds are closed.
+    /// True while US stock markets are shut and NAV feeds can gap at the next open:
+    /// Friday 20:00 UTC to Monday 01:00 UTC, and US market holidays (00:00 UTC to 01:00 UTC the next day).
     function isWeekendWindow(uint256 ts) public pure returns (bool) {
-        uint256 day = (ts / 1 days + 4) % 7; // 0 = Sunday, 5 = Friday, 6 = Saturday
+        uint256 dayNum = ts / 1 days;
+        uint256 day = (dayNum + 4) % 7; // 0 = Sunday, 1 = Monday, 5 = Friday, 6 = Saturday
         uint256 hour = (ts % 1 days) / 1 hours;
-        return (day == 5 && hour >= 20) || day == 6 || (day == 0 && hour < 23);
+        if ((day == 5 && hour >= 20) || day == 6 || day == 0 || (day == 1 && hour < 1)) return true;
+        return isMarketHoliday(dayNum) || (hour < 1 && isMarketHoliday(dayNum - 1));
+    }
+
+    /// NYSE full-day closures on weekdays, as days since 1970-01-01 (UTC). Covers Nov 2026 to Dec 2027.
+    function isMarketHoliday(uint256 dayNum) public pure returns (bool) {
+        return dayNum == 20783 // 2026-11-26 Thanksgiving
+            || dayNum == 20812 // 2026-12-25 Christmas
+            || dayNum == 20819 // 2027-01-01 New Year's Day
+            || dayNum == 20836 // 2027-01-18 Martin Luther King Jr. Day
+            || dayNum == 20864 // 2027-02-15 Washington's Birthday
+            || dayNum == 20903 // 2027-03-26 Good Friday
+            || dayNum == 20969 // 2027-05-31 Memorial Day
+            || dayNum == 20987 // 2027-06-18 Juneteenth (observed)
+            || dayNum == 21004 // 2027-07-05 Independence Day (observed)
+            || dayNum == 21067 // 2027-09-06 Labor Day
+            || dayNum == 21147 // 2027-11-25 Thanksgiving
+            || dayNum == 21176; // 2027-12-24 Christmas (observed)
     }
 
     /// The trigger that applies right now for `user`.

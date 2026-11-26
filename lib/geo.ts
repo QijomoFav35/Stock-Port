@@ -31,8 +31,16 @@ export function geoSource(): GeoSource {
   return process.env.VERCEL ? "vercel" : process.env.IPINFO_TOKEN ? "ipinfo" : "cloudflare";
 }
 
-/** Visitor IP as seen by the host's proxy (Cloudflare-style headers first, then X-Forwarded-For). */
+/**
+ * Visitor IP as seen by the host's proxy.
+ * A visitor can send any of these headers themselves. Only a header that the host's proxy overwrites is safe,
+ * so set CLIENT_IP_HEADER to that one header (for example cf-connecting-ip) and nothing else is read.
+ * docs/LAUNCH.md has a one-line test that a faked header doesn't change your country.
+ */
 export function clientIp(h: Headers): string | undefined {
+  const only = process.env.CLIENT_IP_HEADER?.trim().toLowerCase();
+  if (only) return h.get(only)?.split(",")[0]?.trim() || undefined;
+  if (geoSource() === "cloudflare") return h.get("cf-connecting-ip") ?? undefined;
   return (
     h.get("cf-connecting-ip") ??
     h.get("true-client-ip") ??

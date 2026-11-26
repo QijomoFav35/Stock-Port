@@ -90,7 +90,11 @@ export default function GuardCard() {
   const t = num(trigger);
   const tg = num(target);
   const w = weekend.trim() ? num(weekend) : 0;
-  const valid = t >= 1.02 && tg > t && tg <= 3 && (w === 0 || (w >= t && w < tg)) && fundRaw >= 0n;
+  const rulesOk = t >= 1.02 && tg > t && tg <= 3 && (w === 0 || (w >= t && w < tg)) && fundRaw >= 0n;
+  // The contract only lists guards holding at least 1 USDC, so the agent can find them.
+  const reserveAfter = BigInt(g.state?.reserve ?? 0n) + (fundRaw > 0n ? fundRaw : 0n);
+  const reserveOk = reserveAfter >= 1_000_000n;
+  const valid = rulesOk && reserveOk;
   const armed = !!g.state && g.state.trigger > 0;
   const health = g.state?.health;
   const hasDebt = health !== undefined && health > 0 && health < 100;
@@ -162,7 +166,7 @@ export default function GuardCard() {
           {Number.isFinite(t) && Number.isFinite(tg) && (
             <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
               {w > 0
-                ? `From Friday 20:00 to Sunday 23:00 UTC it steps in earlier, at a ${cushion(w)}% cushion, because NAV can gap at the Monday open.`
+                ? `From Friday 20:00 UTC to Monday 01:00 UTC, and on US market holidays, it steps in earlier, at a ${cushion(w)}% cushion, because NAV can gap at the Monday open.`
                 : "No separate weekend setting."}
             </p>
           )}
@@ -219,7 +223,8 @@ export default function GuardCard() {
             Add USDC to the reserve
             <input className="input num" inputMode="decimal" placeholder="0" value={fund} onChange={(e) => setFund(e.target.value)} disabled={busy} />
           </label>
-          {!valid && <p className="err">Trigger must be at least 1.02, target above trigger (max 3), weekend between them.</p>}
+          {!rulesOk && <p className="err">Trigger must be at least 1.02, target above trigger (max 3), weekend between them.</p>}
+          {rulesOk && !reserveOk && <p className="err">Add at least 1 USDC to the reserve so the agent can repay for you.</p>}
 
           <div style={{ display: "grid", gap: 8, marginTop: 14 }}>
             <button

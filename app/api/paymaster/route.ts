@@ -1,11 +1,13 @@
 /**
  * POST /api/paymaster: ERC-7677 proxy to the CDP Paymaster.
  * Keeps CDP_PAYMASTER_URL (it contains the key) on the server. Only the two paymaster methods pass.
- * Which contracts get sponsored, and how much per user, is set in the CDP dashboard allowlist.
+ * Only userOps whose every call goes to Stock Port's known contracts are sponsored (lib/sponsorPolicy.ts).
+ * Per-user limits are set in the CDP dashboard, which also keeps its own contract allowlist.
  */
 import { NextResponse, type NextRequest } from "next/server";
 import { GEO_HEADER, isTradingBlocked } from "@/lib/geo";
 import { BASE_CHAIN_ID } from "@/lib/constants";
+import { sponsorRefusal } from "@/lib/sponsorPolicy";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +47,8 @@ export async function POST(req: NextRequest) {
   if (!Array.isArray(body.params) || String(body.params[2]).toLowerCase() !== CHAIN_HEX) {
     return NextResponse.json({ error: "wrong_chain" }, { status: 400, headers: CORS });
   }
+  const refusal = await sponsorRefusal(body.params[0]).catch(() => "policy check failed");
+  if (refusal) return NextResponse.json({ error: "not_sponsored", message: refusal }, { status: 403, headers: CORS });
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
