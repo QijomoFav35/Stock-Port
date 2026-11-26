@@ -42,6 +42,9 @@ type State = {
 };
 const g = globalThis as unknown as { __usage?: State };
 
+/** True when a tx hash is already known as a Stock Port tx (from the last scan). */
+export const isPortTx = (hash: Hex) => g.__usage?.txs.has(hash) ?? false;
+
 export const STATS_FROM_BLOCK = process.env.STATS_FROM_BLOCK ? BigInt(process.env.STATS_FROM_BLOCK) : undefined;
 
 async function watchList(): Promise<Address[]> {

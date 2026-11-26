@@ -841,3 +841,118 @@ input[type="checkbox"] {
     color: #fff;
   }
 }
+
+/* Live on Base feed (home) */
+.live-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.live-win {
+  margin-left: auto;
+  font-size: 12px;
+}
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #0000ff;
+  box-shadow: 0 0 0 0 rgba(0, 0, 255, 0.5);
+  animation: live-pulse 1.6s ease-out infinite;
+}
+@keyframes live-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(0, 0, 255, 0.45); }
+  100% { box-shadow: 0 0 0 10px rgba(0, 0, 255, 0); }
+}
+.live-agents {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--raised);
+  font-size: 13px;
+}
+.live-agent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.live-ok,
+.live-warn {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+.live-ok { background: #66c800; }
+.live-warn { background: #fc401f; }
+.live-rows {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  max-height: 460px;
+  overflow: hidden;
+}
+.live-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 14px;
+  text-decoration: none;
+}
+.live-row:hover {
+  border-color: #0000ff;
+}
+.live-port {
+  border-left: 3px solid #0000ff;
+}
+.live-new {
+  animation: live-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), live-flash 2.4s ease-out;
+}
+@keyframes live-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes live-flash {
+  from { background: rgba(0, 0, 255, 0.08); }
+  to { background: transparent; }
+}
+.live-kind {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  min-width: 58px;
+  text-align: center;
+}
+.live-buy { background: #b6f569; color: #0a0b0d; }
+.live-sell { background: #fc401f; color: #0a0b0d; }
+.live-mint { background: #0000ff; color: #fff; }
+.live-redeem { background: var(--raised); color: #0a0b0d; }
+.live-amt { font-weight: 600; }
+.live-tag {
+  font-size: 11px;
+  font-weight: 600;
+  color: #0000ff;
+  border: 1px solid #0000ff;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+.live-ago {
+  margin-left: auto;
+  font-size: 12px;
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .live-row { gap: 8px; font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot, .live-new { animation: none; }
+}

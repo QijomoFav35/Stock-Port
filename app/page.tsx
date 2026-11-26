@@ -1,5 +1,6 @@
 import { UNIVERSE } from "@/lib/baskets";
 import { listTokenizedStocks, type TokenizedStock } from "@/lib/tokenizedStocks";
+import LiveFeed from "@/components/LiveFeed";
 import GatesBoard from "@/components/GatesBoard";
 import Icon from "@/components/Icon";
 import type { IconName } from "@/lib/icons";
@@ -174,6 +175,16 @@ export default async function Home() {
           {track(tickerItems, true)}
         </div>
       </div>
+
+      <section className="wrap sec" style={{ paddingBottom: 8 }}>
+        <div className="gate-head">
+          <h2 className="disp gate-title">
+            Arrivals and departures. <em>Live.</em>
+          </h2>
+          <p className="gate-sub">Real tokenized stock trades on Base and what our agents are checking right now.</p>
+        </div>
+        <LiveFeed />
+      </section>
 
       <section className="wrap sec" style={{ paddingBottom: 48 }}>
         <div className="gate-head">
