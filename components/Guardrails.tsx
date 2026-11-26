@@ -4,7 +4,7 @@ import { DRIFT_GUARD_ON, NAV_DRIFT_MAX_PCT } from "@/lib/peg";
 
 /** Only rules the code enforces today are "Live". */
 const RULES: { icon: IconName; title: string; body: string; live: boolean }[] = [
-  { icon: "ph-wallet", title: "Self-custody", body: "Tokens land in your wallet. Stock Port never holds your funds.", live: true },
+  { icon: "ph-wallet", title: "Self-custody", body: "Buys land in your wallet. Loan Guard and AutoPilot hold only what you deposit, in no-owner contracts you can exit anytime.", live: true },
   { icon: "ph-shield-check", title: "Exact approvals", body: "You approve exactly what you spend. No infinite approval.", live: true },
   {
     icon: "ph-scales",

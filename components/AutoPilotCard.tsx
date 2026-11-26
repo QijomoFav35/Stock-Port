@@ -209,7 +209,7 @@ export default function AutoPilotCard({
       </div>
       <p className="muted" style={{ fontSize: 13, marginTop: 8 }}>
         {mode === "tap"
-          ? "The agent checks your rules every minute and proposes each move with its reason. You approve with one tap. Funds stay in your wallet."
+          ? "Your rules run on the live 7-day NAV board while this page is open, and propose each move with its reason. You approve with one tap. Funds stay in your wallet."
           : "The agent trades for you inside your rules. A no-owner contract enforces every limit: only your agent, only between USDC and these stocks, never faster than your interval, and every swap must fill within your slippage cap of Chainlink NAV. Withdraw anytime."}
       </p>
 

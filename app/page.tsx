@@ -111,7 +111,7 @@ export default async function Home() {
           </h1>
           <p className="r3 muted" style={{ maxWidth: 620, margin: "22px auto 0", fontSize: 19 }}>
             Just like an airport, but for stocks. Borrow USDC against your tokenized stocks, and Loan Guard repays before
-            liquidation, even over the weekend. Self-custody all the way, on Base.
+            liquidation, even over the weekend. Every rule is enforced onchain, on Base.
           </p>
           <div className="r4" style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 34, flexWrap: "wrap" }}>
             <a href="#routes" className="btn btn-blue">

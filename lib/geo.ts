@@ -16,6 +16,8 @@
 export const BLOCKED_COUNTRIES = new Set([
   // United States + territories
   "US", "PR", "GU", "VI", "AS", "MP", "UM",
+  // United Kingdom: the footer and /privacy promise it
+  "GB",
   // OFAC comprehensive sanctions
   "CU", "IR", "KP", "SY",
 ]);

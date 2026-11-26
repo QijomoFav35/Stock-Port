@@ -35,7 +35,7 @@ const plexMono = IBM_Plex_Mono({
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 const TITLE = "Stock Port · Your port of entry to Tokenized Stocks";
-const DESCRIPTION = "Buy, borrow, rotate and sweep tokenized stocks on Base from one terminal. Every move in one tx. Self-custody.";
+const DESCRIPTION = "Borrow USDC against your tokenized stocks on Base. Loan Guard repays before liquidation and AutoPilot rotates your bag, inside rules you set onchain.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),

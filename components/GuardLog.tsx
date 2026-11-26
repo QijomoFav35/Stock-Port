@@ -86,7 +86,7 @@ export default function GuardLog() {
           {GUARD_PREVIEW ? "Agent log · sample data. " : "Agent log. "}
           {stats.lastCheck
             ? `Last check ${ago(stats.lastCheck.at)}: ${stats.lastCheck.checked} loans, ${stats.lastCheck.atRisk} under trigger.`
-            : "The Guard Agent checks every guarded loan every minute."}
+            : "The Guard Agent checks every guarded loan every few minutes."}
         </div>
         {recent.map((r) => (
           <div key={r.user + r.at} className="rule" style={{ minHeight: 44, fontSize: 13 }}>

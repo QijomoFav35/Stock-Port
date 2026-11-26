@@ -59,7 +59,7 @@ export default async function BasketsPage({ searchParams }: { searchParams: Prom
                   ["ph-scales", "Baskets", <>
                     <span className="num">{BASKETS.length}</span> themes · <span className="num">{UNIVERSE.length}</span> stocks
                   </>],
-                  ["ph-lightning", "Route", "o1 Exchange, Aerodrome fallback"],
+                  ["ph-lightning", "Route", "Aerodrome direct, 0x and o1 as fallbacks"],
                   ["ph-shield-check", "Approvals", "Exact amount only"],
                 ] as [IconName, string, ReactNode][]
               ).map(([icon, k, v]) => (

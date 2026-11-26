@@ -50,7 +50,7 @@ export const BASKETS: Basket[] = [
   {
     id: "ipo-szn",
     name: "IPO Szn",
-    thesis: "SpaceX and Anthropic, the two biggest IPOs on record. Now tokenized.",
+    thesis: "SpaceX and Anthropic, tokenized. Tracks the price, no shareholder rights.",
     color: "#0A0B0D",
     ink: "#FFFFFF",
     legs: even(["ANTc", "SPCXc"]),

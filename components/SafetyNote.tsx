@@ -14,7 +14,7 @@ export default function SafetyNote() {
         Exact approval, no infinite approvals · <span style={{ color: "var(--blue)" }}>why it&apos;s safe</span>
       </summary>
       <ul style={{ marginTop: 12, paddingLeft: 20, display: "grid", gap: 6, textAlign: "left" }}>
-        <li>Non-custodial. Stock Port never holds your funds; tokens land in your own wallet.</li>
+        <li>Non-custodial. Buys land in your own wallet; no Stock Port server ever holds funds.</li>
         <li>Exact approvals only, never infinite. A $20 buy can move $20 of USDC and nothing more.</li>
         <li>
           Routed by{" "}
