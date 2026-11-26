@@ -116,7 +116,8 @@ const mask = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
 export async function getUsage(): Promise<UsageSummary> {
   if (STATS_FROM_BLOCK === undefined || !DATA_SUFFIX) return { configured: false };
-  const st = (g.__usage ??= { from: STATS_FROM_BLOCK, cursor: STATS_FROM_BLOCK, head: STATS_FROM_BLOCK, txs: new Map(), seen: new Set() });
+  const fresh: State = { from: STATS_FROM_BLOCK, cursor: STATS_FROM_BLOCK, head: STATS_FROM_BLOCK, txs: new Map<Hex, UsageTx>(), seen: new Set<Hex>() };
+  const st: State = (g.__usage ??= fresh);
   // One scan at a time; concurrent requests wait for the same pass.
   st.running ??= scan(st).finally(() => (st.running = undefined));
   await st.running;
