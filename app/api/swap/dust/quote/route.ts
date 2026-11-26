@@ -14,6 +14,7 @@ import { GEO_HEADER, isTradingBlocked } from "@/lib/geo";
 import { DUST_MAX_GAS_USD, DUST_MAX_IMPACT_BPS, DUST_MAX_TOKENS, USDC_BASE, USDC_DECIMALS } from "@/lib/constants";
 import { getZeroExQuote } from "@/lib/zeroEx";
 import { getUsdPrices } from "@/lib/alchemy";
+import { publicMessage } from "@/lib/safeError";
 
 export const dynamic = "force-dynamic";
 
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
           minBuyUsdc: q.minBuyAmount,
         };
       } catch (e) {
-        return { token, reason: "quote_failed", detail: (e as Error).message.slice(0, 160) };
+        return { token, reason: "quote_failed", detail: publicMessage(e).slice(0, 160) };
       }
     }),
   );

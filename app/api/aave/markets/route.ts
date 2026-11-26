@@ -4,6 +4,7 @@
  */
 import { NextResponse } from "next/server";
 import { AAVE_API, AAVE_SPOKE } from "@/lib/aave";
+import { logAndMask } from "@/lib/safeError";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,6 @@ export async function GET() {
     }));
     return NextResponse.json({ reserves }, { headers: { "cache-control": "public, max-age=300, stale-while-revalidate=900" } });
   } catch (e) {
-    return NextResponse.json({ error: "aave_api_failed", message: (e as Error).message }, { status: 502 });
+    return NextResponse.json({ error: "aave_api_failed", message: logAndMask("aave", e) }, { status: 502 });
   }
 }

@@ -51,7 +51,7 @@ async function keeperPass(guard: Address): Promise<KeeperRun> {
   });
   const run: KeeperRun = { at: Date.now(), checked: users.length, atRisk: 0, protected: 0, entries: [] };
   const pk = process.env.KEEPER_PRIVATE_KEY as `0x${string}` | undefined;
-  const wallet = pk ? createWalletClient({ account: privateKeyToAccount(pk), chain: base, transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL) }) : undefined;
+  const wallet = pk ? createWalletClient({ account: privateKeyToAccount(pk), chain: base, transport: http(process.env.BASE_RPC_URL || undefined) }) : undefined;
 
   for (const [i, c] of checks.entries()) {
     if (c.status !== "success") continue;

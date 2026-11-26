@@ -14,7 +14,7 @@ const OTHER_FACTORY = "0x9CB220581b91b0C83223012FE69688b92aD07a76";
 const SPACINGS = [1, 10, 50, 100, 200, 2000];
 const MIN_USDC = 1000;
 
-const client = createPublicClient({ chain: base, transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || undefined) });
+const client = createPublicClient({ chain: base, transport: http(process.env.BASE_RPC_URL || process.env.NEXT_PUBLIC_BASE_RPC_URL || undefined) });
 const erc20 = parseAbi(["function balanceOf(address) view returns (uint256)"]);
 const factoryAbi = parseAbi([
   "function getPool(address,address,int24) view returns (address)",

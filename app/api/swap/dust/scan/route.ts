@@ -13,6 +13,7 @@ import { GEO_HEADER, isTradingBlocked } from "@/lib/geo";
 import { DUST_MAX_USD, USDC_BASE } from "@/lib/constants";
 import { getTokenBalances, getTokenMetadata, getUsdPrices } from "@/lib/alchemy";
 import { listTokenizedStocks } from "@/lib/tokenizedStocks";
+import { logAndMask } from "@/lib/safeError";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,6 @@ export async function POST(req: NextRequest) {
     tokens.sort((a, b) => b.valueUsd - a.valueUsd);
     return NextResponse.json({ tokens, hiddenUnpriced } satisfies DustScan);
   } catch (e) {
-    return NextResponse.json({ error: "scan_failed", message: (e as Error).message }, { status: 502 });
+    return NextResponse.json({ error: "scan_failed", message: logAndMask("dust-scan", e) }, { status: 502 });
   }
 }

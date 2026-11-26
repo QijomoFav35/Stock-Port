@@ -769,3 +769,65 @@ input[type="checkbox"] {
     padding-top: 40px;
   }
 }
+
+/* Text pages (privacy) */
+.prose h2 {
+  font-family: var(--font-montserrat), system-ui, sans-serif;
+  font-size: 22px;
+  margin: 32px 0 8px;
+}
+.prose p,
+.prose li {
+  font-size: 16px;
+  color: var(--g80);
+}
+.prose ul {
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+}
+.prose code {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 14px;
+  background: var(--raised);
+  padding: 1px 6px;
+  border-radius: 6px;
+}
+@media (max-width: 720px) {
+  .foot-links {
+    justify-items: start !important;
+  }
+}
+
+/* Phone navigation row under the header */
+.mnav {
+  display: none;
+}
+@media (max-width: 720px) {
+  .mnav {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 0 16px 10px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .mnav::-webkit-scrollbar {
+    display: none;
+  }
+  .mnav a {
+    flex: none;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: #fff;
+    color: var(--g80);
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .mnav a.on {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: #fff;
+  }
+}

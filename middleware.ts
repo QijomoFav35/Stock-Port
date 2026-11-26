@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { GEO_HEADER, isTradingBlocked, resolveCountry } from "@/lib/geo";
+import { GEO_HEADER, clientIp, isTradingBlocked, resolveCountry } from "@/lib/geo";
+import { hit, limitFor } from "@/lib/rateLimit";
 
 /**
  * US / sanctioned-country trade block.
@@ -10,6 +11,18 @@ import { GEO_HEADER, isTradingBlocked, resolveCountry } from "@/lib/geo";
  *   `x-geo-blocked` header and a readable cookie so the UI can disable trading.
  */
 export async function middleware(req: NextRequest) {
+  // Rate limit every API route per IP before doing any other work (lib/rateLimit.ts has the numbers).
+  const limit = limitFor(req.nextUrl.pathname);
+  if (limit) {
+    const wait = hit(clientIp(req.headers) ?? "unknown", limit.prefix, limit.perMinute);
+    if (wait > 0) {
+      return NextResponse.json(
+        { error: "rate_limited", message: "Too many requests. Please wait a moment and try again." },
+        { status: 429, headers: { "retry-after": String(wait) } },
+      );
+    }
+  }
+
   const country = (await resolveCountry(req.headers)) ?? "";
   const blocked = isTradingBlocked(country);
   const { pathname } = req.nextUrl;

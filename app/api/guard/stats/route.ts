@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { publicClient } from "@/lib/publicClient";
 import { LOAN_GUARD, loanGuardAbi } from "@/lib/loanGuard";
 import { keeperLog, listGuardedUsers } from "@/lib/guardKeeper";
+import { logAndMask } from "@/lib/safeError";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,6 @@ export async function GET() {
       { headers: { "cache-control": "public, max-age=30" } },
     );
   } catch (e) {
-    return NextResponse.json({ error: "stats_failed", message: (e as Error).message }, { status: 502 });
+    return NextResponse.json({ error: "stats_failed", message: logAndMask("guard-stats", e) }, { status: 502 });
   }
 }

@@ -12,6 +12,7 @@ import { MAX_PORT_USDC, MIN_DUST_PORT_USDC } from "@/lib/constants";
 import { BASKET_IDS } from "@/lib/baskets";
 import { RouteError, errText } from "@/lib/basketQuote";
 import { quoteRotate } from "@/lib/rotateQuote";
+import { logAndMask } from "@/lib/safeError";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,6 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     if (e instanceof RouteError) return NextResponse.json(e.body, { status: e.status });
     console.warn(`[rotate] ${errText(e)}`);
-    return NextResponse.json({ error: "rotate_failed", message: (e as Error).message }, { status: 502 });
+    return NextResponse.json({ error: "rotate_failed", message: logAndMask("rotate", e) }, { status: 502 });
   }
 }

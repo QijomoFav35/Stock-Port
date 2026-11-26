@@ -20,7 +20,7 @@ const basket = (process.env.NEXT_PUBLIC_BASKET ?? "NVDAc:3400,GOOGLc:3300,METAc:
     return { symbol, weightBps: Number(w) };
   });
 
-const client = createPublicClient({ chain: base, transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || undefined) });
+const client = createPublicClient({ chain: base, transport: http(process.env.BASE_RPC_URL || process.env.NEXT_PUBLIC_BASE_RPC_URL || undefined) });
 const ROUTER = process.env.AERODROME_ROUTER ?? "0x698Cb2b6dd822994581fEa6eA4Fc755d1363A92F";
 // Glacier's pools live on this other Aerodrome CL factory. Shown for comparison only: our router can't use them.
 const OTHER_FACTORY = "0x9CB220581b91b0C83223012FE69688b92aD07a76";

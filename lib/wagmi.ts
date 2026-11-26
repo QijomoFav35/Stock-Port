@@ -1,6 +1,7 @@
 import { createConfig, http } from "wagmi";
 import { base } from "wagmi/chains";
 import { baseAccount, injected, walletConnect } from "wagmi/connectors";
+import { rpcUrl } from "@/lib/rpc";
 
 /**
  * Base Account (passkey smart wallet, no extension needed) + any injected wallet (MetaMask, Rabby,
@@ -34,7 +35,7 @@ export const config = createConfig({
         ]
       : []),
   ],
-  transports: { [base.id]: http(process.env.NEXT_PUBLIC_BASE_RPC_URL) },
+  transports: { [base.id]: http(rpcUrl()) },
   ssr: true,
 });
 

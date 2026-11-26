@@ -55,6 +55,14 @@ export default function Navbar() {
           <ConnectButton />
         </div>
       </div>
+      {/* Phones: the links above are hidden, so show them as a swipeable row. */}
+      <nav className="mnav" aria-label="Pages">
+        {LINKS.map((l) => (
+          <Link key={l.href} href={l.href} className={path === l.href ? "on" : undefined} aria-current={path === l.href ? "page" : undefined}>
+            {l.label}
+          </Link>
+        ))}
+      </nav>
     </nav>
   );
 }

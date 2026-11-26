@@ -1,6 +1,9 @@
+import Link from "next/link";
 import Icon from "@/components/Icon";
+import { contactLinks } from "@/lib/contact";
 
 export default function Footer() {
+  const contact = contactLinks();
   return (
     <footer style={{ borderTop: "1px solid var(--line)", marginTop: 48 }}>
       <div
@@ -21,9 +24,19 @@ export default function Footer() {
           shareholder or voting rights in the underlying companies. Reference prices are Chainlink NAV values, not
           execution prices. Past results don&apos;t predict future ones. Not investment advice.
         </span>
-        <span className="nowrap" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <Icon name="net-base" size={16} />
-          Stock Port · built on Base
+        <span style={{ display: "grid", gap: 8, justifyItems: "end" }} className="foot-links">
+          <span className="nowrap" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <Icon name="net-base" size={16} />
+            Stock Port · built on Base
+          </span>
+          <span style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+            <Link href="/privacy">Privacy</Link>
+            {contact.map((c) => (
+              <a key={c.href} href={c.href} target="_blank" rel="noreferrer">
+                {c.label}
+              </a>
+            ))}
+          </span>
         </span>
       </div>
     </footer>

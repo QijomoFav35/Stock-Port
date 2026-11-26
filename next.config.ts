@@ -32,7 +32,20 @@ const optionalX402 = [
 ];
 const STUB = "./lib/stubs/empty.js";
 
+/** Basic hardening for every response. No CSP yet: wallet SDKs load popups and iframes we'd have to list first. */
+const SECURITY_HEADERS = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+  ...(process.env.NODE_ENV === "production" ? [{ key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" }] : []),
+];
+
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: "/:path*", headers: SECURITY_HEADERS }];
+  },
   turbopack: {
     resolveAlias: Object.fromEntries(optionalX402.map((m) => [m, STUB])),
   },

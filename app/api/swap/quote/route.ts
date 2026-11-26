@@ -12,6 +12,7 @@ import { GEO_HEADER, isTradingBlocked } from "@/lib/geo";
 import { MAX_PORT_USDC, MIN_DUST_PORT_USDC, MIN_PORT_USDC, USDC_DECIMALS } from "@/lib/constants";
 import { BASKET_IDS, getBasket } from "@/lib/baskets";
 import { RouteError, quoteBasketBuy } from "@/lib/basketQuote";
+import { logAndMask } from "@/lib/safeError";
 
 export type { PortCall, PortQuote } from "@/lib/basketQuote";
 
@@ -52,6 +53,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(quote);
   } catch (e) {
     if (e instanceof RouteError) return NextResponse.json(e.body, { status: e.status });
-    return NextResponse.json({ error: "quote_failed", message: (e as Error).message }, { status: 502 });
+    return NextResponse.json({ error: "quote_failed", message: logAndMask("quote", e) }, { status: 502 });
   }
 }
