@@ -116,7 +116,13 @@ export default function ConnectButton({ className = "", full = false }: { classN
               onMouseEnter={(e) => (e.currentTarget.style.background = "var(--raised)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              <Icon name={walletIcon(c.name)} size={24} />
+              {walletIcon(c.name) === "ph-wallet" && c.icon ? (
+                // The wallet's own logo, announced by its extension (EIP-6963).
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={c.icon} alt="" width={24} height={24} style={{ borderRadius: 6 }} />
+              ) : (
+                <Icon name={walletIcon(c.name)} size={24} />
+              )}
               <span style={{ flex: 1 }}>{c.name === "Injected" ? "Browser wallet" : c.name}</span>
               {i === 0 && (
                 <span className="tag" style={{ background: "var(--lime)", color: "var(--ink)", fontSize: 10, padding: "2px 8px" }}>
