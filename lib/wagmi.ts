@@ -18,7 +18,7 @@ const appUrl =
 export const config = createConfig({
   chains: [base],
   connectors: [
-    baseAccount({ appName: "Stock Port" }),
+    baseAccount({ appName: "Stock Port", preference: { telemetry: false } }),
     injected(),
     ...(wcProjectId
       ? [
