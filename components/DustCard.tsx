@@ -73,7 +73,7 @@ export default function DustCard({ geoBlocked }: { geoBlocked: boolean }) {
           <Icon name="ph-broom" size={36} />
         </span>
         <p className="disp" style={{ fontSize: 24, margin: "12px 0 4px" }}>
-          Find your dust
+          Find dust tokens
         </p>
         <p className="muted" style={{ fontSize: 15, marginBottom: 20 }}>
           Connect a wallet to scan Base for small balances you can sweep into stocks.

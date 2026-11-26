@@ -21,7 +21,7 @@ export default async function SweepPage() {
           label="Dust Sweep"
           title={
             <>
-              Sweep your dust <em>into stocks.</em>
+              Sweep dust tokens <em>into stocks.</em>
             </>
           }
           sub="Swap the dust in your wallet to USDC, then buy a tokenized stock basket. Spam is hidden, and anything not worth the Gas is skipped. Every tx is shown before you sign."
