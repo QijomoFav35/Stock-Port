@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Icon from "@/components/Icon";
+import FeedbackBox from "@/components/FeedbackBox";
 
 export default function Footer() {
   return (
@@ -29,6 +30,7 @@ export default function Footer() {
           </span>
           <span style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
             <Link href="/privacy">Privacy</Link>
+            <FeedbackBox />
           </span>
         </span>
       </div>

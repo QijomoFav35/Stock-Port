@@ -36,6 +36,10 @@ export default function PrivacyPage() {
           <b>Your wallet address and amounts</b>, when you ask for a quote, a Dust Sweep scan or a borrow preview, so we can build the tx.
         </li>
         <li>
+          <b>Feedback you send</b>, if you use the Feedback box: only your text and the page you sent it from go to a private channel.
+          No email, wallet or IP address is attached.
+        </li>
+        <li>
           <b>Standard server logs</b> (time, page, status) kept by our host for debugging and abuse prevention.
         </li>
       </ul>

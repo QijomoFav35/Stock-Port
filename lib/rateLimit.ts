@@ -13,6 +13,7 @@ export const LIMITS: { prefix: string; perMinute: number }[] = [
   { prefix: "/api/swap", perMinute: 40 },
   { prefix: "/api/paymaster", perMinute: 60 },
   { prefix: "/api/guard/keeper", perMinute: 10 },
+  { prefix: "/api/feedback", perMinute: 5 },
   { prefix: "/api/", perMinute: 120 },
 ];
 
