@@ -30,7 +30,8 @@ export default function Footer() {
           </span>
           <span style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
             <Link href="/privacy">Privacy</Link>
-            <FeedbackBox />
+            {/* Hidden until FEEDBACK_WEBHOOK_URL is set on the server */}
+            {process.env.FEEDBACK_WEBHOOK_URL && <FeedbackBox />}
           </span>
         </span>
       </div>
