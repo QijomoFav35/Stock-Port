@@ -1,9 +1,7 @@
 import Link from "next/link";
 import Icon from "@/components/Icon";
-import { contactLinks } from "@/lib/contact";
 
 export default function Footer() {
-  const contact = contactLinks();
   return (
     <footer style={{ borderTop: "1px solid var(--line)", marginTop: 48 }}>
       <div
@@ -31,11 +29,6 @@ export default function Footer() {
           </span>
           <span style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
             <Link href="/privacy">Privacy</Link>
-            {contact.map((c) => (
-              <a key={c.href} href={c.href} target="_blank" rel="noreferrer">
-                {c.label}
-              </a>
-            ))}
           </span>
         </span>
       </div>

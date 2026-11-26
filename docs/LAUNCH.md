@@ -10,7 +10,7 @@ Server only: `BASE_RPC_URL`, `ALCHEMY_API_KEY`, `ZEROX_API_KEY`, `O1_API_KEY`, `
 `CDP_PAYMASTER_URL` (optional), `KEEPER_PRIVATE_KEY`, `KEEPER_CRON_SECRET`, `BANKR_API_KEY` (later).
 
 Public: `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_BASE_BUILDER_CODE`, `NEXT_PUBLIC_LOAN_GUARD_ADDRESS`,
-`NEXT_PUBLIC_LOAN_GUARD_FROM_BLOCK`, `NEXT_PUBLIC_CONTACT_X`, analytics ids. Never set `NEXT_PUBLIC_GUARD_PREVIEW` on Render.
+`NEXT_PUBLIC_LOAN_GUARD_FROM_BLOCK`, analytics ids. Never set `NEXT_PUBLIC_GUARD_PREVIEW` on Render.
 
 Rule: anything starting with `NEXT_PUBLIC_` ends up in the browser. Keys never get that prefix.
 

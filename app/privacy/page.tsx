@@ -1,14 +1,11 @@
-import { contactLinks } from "@/lib/contact";
-
 export const metadata = {
   title: "Privacy · Stock Port",
-  description: "What Stock Port collects (almost nothing), which services see your requests, and how to reach us.",
+  description: "What Stock Port collects (almost nothing) and which services see your requests.",
 };
 
 const UPDATED = "November 26, 2026";
 
 export default function PrivacyPage() {
-  const contact = contactLinks();
   return (
     <main className="wrap prose" style={{ paddingTop: 56, paddingBottom: 64, maxWidth: 760 }}>
       <div className="eyebrow">Privacy</div>
@@ -65,24 +62,6 @@ export default function PrivacyPage() {
         Tokenized stocks track a reference price and grant no shareholder or voting rights. Borrowing can lead to liquidation. Loan Guard
         lowers that risk but can&apos;t remove it. Past results don&apos;t predict future ones.
       </p>
-
-      <h2>Contact</h2>
-      {contact.length ? (
-        <p>
-          Questions, bugs or data requests:{" "}
-          {contact.map((c, i) => (
-            <span key={c.href}>
-              {i > 0 && " or "}
-              <a href={c.href} target="_blank" rel="noreferrer">
-                {c.label}
-              </a>
-            </span>
-          ))}
-          .
-        </p>
-      ) : (
-        <p>Questions, bugs or data requests: open an issue on our GitHub repo.</p>
-      )}
     </main>
   );
 }
