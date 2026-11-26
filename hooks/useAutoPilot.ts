@@ -57,14 +57,14 @@ export function useAutoPilot(walletClient: WalletClient | undefined, account: Ad
         contracts: Array.from({ length: Number(n) }, (_, i) => ({ address: ap, abi: autoPilotAbi, functionName: "stockList", args: [BigInt(i)] }) as const),
       })) as unknown as Address[];
       const all = [USDC_BASE, ...tokens];
-      const [p, w, ...bals] = await publicClient.multicall({
-        allowFailure: false,
-        contracts: [
-          { address: ap, abi: autoPilotAbi, functionName: "pilots", args: [account] },
-          { address: USDC_BASE, abi: erc20Abi, functionName: "balanceOf", args: [account] },
-          ...all.map((t) => ({ address: ap, abi: autoPilotAbi, functionName: "balances", args: [account, t] }) as const),
-        ],
-      });
+      const [p, w, bals] = await Promise.all([
+        publicClient.readContract({ address: ap, abi: autoPilotAbi, functionName: "pilots", args: [account] }),
+        publicClient.readContract({ address: USDC_BASE, abi: erc20Abi, functionName: "balanceOf", args: [account] }),
+        publicClient.multicall({
+          allowFailure: false,
+          contracts: all.map((t) => ({ address: ap, abi: autoPilotAbi, functionName: "balances", args: [account, t] }) as const),
+        }),
+      ]);
       if (dead) return;
       setState({
         pilot: parsePilot(p as unknown as readonly unknown[]),
