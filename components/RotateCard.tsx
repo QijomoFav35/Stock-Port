@@ -21,7 +21,9 @@ export default function RotateCard({
   to,
   stocks,
   geoBlocked,
+  initialFrom,
 }: {
+  initialFrom?: string;
   baskets: Basket[];
   to: Basket;
   stocks: Record<string, StockInfo>;
@@ -33,7 +35,7 @@ export default function RotateCard({
   const [attest, setAttest] = useState(false);
   const [held, setHeld] = useState<Record<string, number>>({});
   const others = baskets.filter((b) => b.id !== to.id);
-  const [fromId, setFromId] = useState(others[0]?.id ?? "");
+  const [fromId, setFromId] = useState(initialFrom && others.some((o) => o.id === initialFrom) ? initialFrom : (others[0]?.id ?? ""));
 
   useEffect(() => {
     try {

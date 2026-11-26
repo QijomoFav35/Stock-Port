@@ -12,6 +12,7 @@ const GATES: Gate[] = [
   { gate: "A1", action: "BORROW", what: "USDC against your stocks. Never sell.", status: "Boarding", href: "/borrow" },
   { gate: "A2", action: "LOAN GUARD", what: "An agent that repays before liquidation", status: LOAN_GUARD ? "Open" : "Next", href: "/borrow#guard" },
   { gate: "B1", action: "BUY", what: "Tokenized stocks from $5 to borrow against", status: "Open", href: "/baskets" },
+  { gate: "B2", action: "AUTOPILOT", what: "Program your bag. An agent rotates by your rules", status: "Boarding", href: "/baskets?mode=autopilot" },
   { gate: "C1", action: "STATS", what: "Every tx, verifiable onchain", status: "Open", href: "/stats" },
 ];
 

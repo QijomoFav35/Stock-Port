@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import PortCard from "@/components/PortCard";
 import RotateCard from "@/components/RotateCard";
+import AutoPilotCard from "@/components/AutoPilotCard";
 import PegChip from "@/components/PegChip";
 import type { Basket } from "@/lib/baskets";
 import type { PegHealth } from "@/lib/peg";
@@ -44,10 +45,13 @@ export default function BasketDesk({
   geoBlocked: boolean;
 }) {
   const [id, setId] = useState(initialId);
-  const [mode, setMode] = useState<"buy" | "rotate">("buy");
-  // The Rotate route links to /baskets?mode=rotate.
+  const [mode, setMode] = useState<"buy" | "rotate" | "auto">("buy");
+  const [rotateFrom, setRotateFrom] = useState<string>();
+  // Routes link to /baskets?mode=rotate and /baskets?mode=autopilot.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("mode") === "rotate") setMode("rotate");
+    const m = new URLSearchParams(window.location.search).get("mode");
+    if (m === "rotate") setMode("rotate");
+    if (m === "autopilot") setMode("auto");
   }, []);
   const basket = baskets.find((b) => b.id === id) ?? baskets[0];
   const pick = (next: string) => {
@@ -138,7 +142,7 @@ export default function BasketDesk({
 
         <div style={{ display: "grid", gap: 12 }}>
           <div role="tablist" aria-label="Buy or rotate" style={{ display: "flex", gap: 4, padding: 4, borderRadius: 999, background: "var(--raised)" }}>
-            {(["buy", "rotate"] as const).map((m) => (
+            {(["buy", "rotate", "auto"] as const).map((m) => (
               <button
                 key={m}
                 role="tab"
@@ -157,14 +161,24 @@ export default function BasketDesk({
                   boxShadow: mode === m ? "0 1px 2px rgba(10,11,13,.08)" : "none",
                 }}
               >
-                {m === "buy" ? "Buy with USDC" : "Rotate"}
+                {m === "buy" ? "Buy" : m === "rotate" ? "Rotate" : "AutoPilot"}
               </button>
             ))}
           </div>
           {mode === "buy" ? (
             <PortCard key={basket.id} geoBlocked={geoBlocked} basket={{ id: basket.id, name: basket.name }} />
+          ) : mode === "rotate" ? (
+            <RotateCard key={basket.id + (rotateFrom ?? "")} baskets={baskets} to={basket} stocks={stocks} geoBlocked={geoBlocked} initialFrom={rotateFrom} />
           ) : (
-            <RotateCard key={basket.id} baskets={baskets} to={basket} stocks={stocks} geoBlocked={geoBlocked} />
+            <AutoPilotCard
+              baskets={baskets}
+              stocks={stocks}
+              onApprove={(from, to) => {
+                pick(to);
+                setRotateFrom(from || undefined);
+                setMode(from ? "rotate" : "buy");
+              }}
+            />
           )}
         </div>
       </div>

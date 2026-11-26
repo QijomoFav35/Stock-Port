@@ -1034,3 +1034,66 @@ input[type="checkbox"] {
   .ag-loan { grid-template-columns: 1fr auto; }
   .ag-mix { grid-column: 1 / -1; }
 }
+
+/* AutoPilot */
+.ap-modes {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--raised);
+  margin-top: 12px;
+}
+.ap-modes button {
+  flex: 1;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--g60);
+  font-weight: 600;
+  cursor: pointer;
+}
+.ap-modes button.on {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(10, 11, 13, 0.08);
+}
+.ap-rules {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  font-size: 14px;
+}
+.ap-rule {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.ap-rule input[type="checkbox"] {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: #0000ff;
+}
+.ap-num {
+  display: inline-block;
+  width: 64px;
+  height: 30px;
+  margin: 0 6px;
+  padding: 2px 8px;
+  text-align: center;
+}
+.ap-decision {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.ap-soon {
+  margin-top: 10px;
+  font-size: 13px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #fff6d6;
+  color: #0a0b0d;
+}

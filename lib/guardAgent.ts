@@ -20,24 +20,7 @@ import { LOAN_GUARD, loanGuardAbi } from "@/lib/loanGuard";
 import { listTokenizedStocks } from "@/lib/tokenizedStocks";
 import { getPegHealth } from "@/lib/pegHealth";
 import { keeperLog } from "@/lib/guardKeeper";
-
-// --- market clock (mirrors LoanGuard.isWeekendWindow) ---
-const HOLIDAYS = new Set([20783, 20812, 20819, 20836, 20864, 20903, 20969, 20987, 21004, 21067, 21147, 21176]);
-export function marketClosed(ms: number): boolean {
-  const ts = Math.floor(ms / 1000);
-  const dayNum = Math.floor(ts / 86400);
-  const day = (dayNum + 4) % 7;
-  const hour = Math.floor((ts % 86400) / 3600);
-  if ((day === 5 && hour >= 20) || day === 6 || day === 0 || (day === 1 && hour < 1)) return true;
-  return HOLIDAYS.has(dayNum) || (hour < 1 && HOLIDAYS.has(dayNum - 1));
-}
-/** Ms until the shield window ends (closed) or starts (open), stepping by the hour. */
-function untilFlip(ms: number): number {
-  const closed = marketClosed(ms);
-  const start = Math.ceil(ms / 3600_000) * 3600_000;
-  for (let t = start; t < ms + 8 * 86400_000; t += 3600_000) if (marketClosed(t) !== closed) return t - ms;
-  return 0;
-}
+import { marketClosed, untilFlip } from "@/lib/marketClock";
 
 // --- borrower discovery from Spoke logs ---
 const SPOKE_FROM_BLOCK = BigInt(process.env.AAVE_SPOKE_FROM_BLOCK || "59900000");
