@@ -36,9 +36,13 @@ export default async function BasketsPage({ searchParams }: { searchParams: Prom
           sub="No stocks yet? Buy a themed basket from $5 in USDC, then switch themes in one tx."
         />
         {error && <p className="err">Prices unavailable right now: {error}</p>}
-        <BasketDesk baskets={BASKETS} initialId={initial.id} stocks={stocks} peg={pegBy} geoBlocked={geoBlocked} />
-        <div className="grid-2">
-          <Guardrails />
+        <BasketDesk
+          baskets={BASKETS}
+          initialId={initial.id}
+          stocks={stocks}
+          peg={pegBy}
+          geoBlocked={geoBlocked}
+          side={
           <div className="card pad">
             <div className="eyebrow">How the basket works</div>
             <div className="disp card-title" style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -73,6 +77,10 @@ export default async function BasketsPage({ searchParams }: { searchParams: Prom
               Every tx carries the Stock Port Builder Code, so anyone can verify it.
             </p>
           </div>
+          }
+        />
+        <div style={{ marginTop: 24 }}>
+          <Guardrails />
         </div>
       </section>
 

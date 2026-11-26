@@ -24,7 +24,7 @@ export default function Guardrails() {
       <div className="disp card-title">
         Hard rules, <em>enforced in code.</em>
       </div>
-      <div style={{ display: "grid", gap: 14, marginTop: 24 }}>
+      <div style={{ display: "grid", gap: 14, columnGap: 32, marginTop: 24, gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 280px), 1fr))" }}>
         {RULES.map((r) => (
           <div key={r.title} style={{ display: "flex", gap: 12, alignItems: "flex-start", opacity: r.live ? 1 : 0.7 }}>
             <span style={{ color: r.live ? "var(--blue)" : "var(--g60)", marginTop: 2 }}>

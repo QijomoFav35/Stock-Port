@@ -1,4 +1,5 @@
 "use client";
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import PortCard from "@/components/PortCard";
 import RotateCard from "@/components/RotateCard";
@@ -33,7 +34,9 @@ export default function BasketDesk({
   stocks,
   peg,
   geoBlocked,
+  side,
 }: {
+  side?: ReactNode;
   baskets: Basket[];
   initialId: string;
   stocks: Record<string, StockInfo>;
@@ -89,6 +92,7 @@ export default function BasketDesk({
           alignItems: "start",
         }}
       >
+        <div style={{ display: "grid", gap: 24 }}>
         <div className="card pad">
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <span style={{ width: 14, height: 14, borderRadius: 7, background: basket.color, flex: "none" }} />
@@ -128,6 +132,8 @@ export default function BasketDesk({
               <span key={l.symbol} style={{ flex: l.weightBps, background: LEG_COLORS[i % LEG_COLORS.length] }} />
             ))}
           </div>
+        </div>
+        {side}
         </div>
 
         <div style={{ display: "grid", gap: 12 }}>
