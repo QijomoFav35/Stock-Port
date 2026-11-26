@@ -230,8 +230,13 @@ export default function AutoPilotCard({
           </span>
         </label>
         <label className="ap-rule">
-          <input type="checkbox" checked={rules.weekendPause} onChange={(e) => update({ weekendPause: e.target.checked })} />
-          <span>Pause while markets are closed and NAV is frozen</span>
+          <input
+            type="checkbox"
+            checked={mode === "auto" || rules.weekendPause}
+            disabled={mode === "auto"}
+            onChange={(e) => update({ weekendPause: e.target.checked })}
+          />
+          <span>Pause while markets are closed and NAV is frozen{mode === "auto" ? " (always on in Auto)" : ""}</span>
         </label>
         <label className="ap-rule">
           <span style={{ marginLeft: 26 }}>

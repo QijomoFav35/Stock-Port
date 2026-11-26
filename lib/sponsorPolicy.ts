@@ -13,6 +13,7 @@ import { LOAN_GUARD } from "@/lib/loanGuard";
 import { AUTOPILOT } from "@/lib/autopilotContract";
 import { UNIVERSE } from "@/lib/baskets";
 import { listTokenizedStocks } from "@/lib/tokenizedStocks";
+import { AGGREGATORS_ON } from "@/lib/constants";
 
 const walletAbi = parseAbi([
   "function execute(address target, uint256 value, bytes data)",
@@ -37,14 +38,40 @@ async function stockTokens(): Promise<Set<string>> {
 /** Contracts that may be called directly or approved as a spender. */
 function spenders(): Set<string> {
   return new Set(
-    [KNOWN_CONTRACTS.aerodromeRouter.address, KNOWN_CONTRACTS.zeroExAllowanceHolder.address, KNOWN_CONTRACTS.permit2.address, AAVE_SPOKE, ...(LOAN_GUARD ? [LOAN_GUARD] : []), ...(AUTOPILOT ? [AUTOPILOT] : [])].map(
+    [
+      KNOWN_CONTRACTS.aerodromeRouter.address,
+      // AllowanceHolder.exec can reach any contract, so it is only sponsored when those routes are on.
+      ...(AGGREGATORS_ON ? [KNOWN_CONTRACTS.zeroExAllowanceHolder.address, KNOWN_CONTRACTS.permit2.address] : []),
+      AAVE_SPOKE, ...(LOAN_GUARD ? [LOAN_GUARD] : []), ...(AUTOPILOT ? [AUTOPILOT] : [])].map(
       (a) => a.toLowerCase(),
     ),
   );
 }
 
+/** Gas caps per userOp, so one request can't burn a large share of the gas credits. */
+const GAS_CAPS: Record<string, bigint> = {
+  callGasLimit: 3_000_000n,
+  verificationGasLimit: 1_000_000n,
+  preVerificationGas: 500_000n,
+  paymasterVerificationGasLimit: 500_000n,
+  paymasterPostOpGasLimit: 500_000n,
+  maxFeePerGas: 2_000_000_000n, // 2 gwei; Base is usually far below
+};
+
 /** Returns a reason string when the userOp must not be sponsored, or undefined when it's fine. */
 export async function sponsorRefusal(userOp: unknown): Promise<string | undefined> {
+  const op = (userOp ?? {}) as Record<string, unknown>;
+  for (const [k, cap] of Object.entries(GAS_CAPS)) {
+    const v = op[k];
+    if (v === undefined || v === null) continue;
+    let n: bigint;
+    try {
+      n = BigInt(v as string);
+    } catch {
+      return `bad ${k}`;
+    }
+    if (n > cap) return `${k} too high`;
+  }
   const callData = (userOp as { callData?: unknown })?.callData;
   if (typeof callData !== "string" || !callData.startsWith("0x")) return "no callData";
   let calls: { target: Address; value: bigint; data: Hex }[];
@@ -66,8 +93,9 @@ export async function sponsorRefusal(userOp: unknown): Promise<string | undefine
     if (c.value !== 0n) return "sends ETH";
     const sel = c.data.slice(0, 10).toLowerCase();
     if (TOKEN_MOVES.has(sel as Hex)) return "token transfer";
-    // Approvals are fine on any token (Dust Sweep approves dust tokens) as long as the spender is ours.
+    // Approvals only on USDC or a basket stock, and only to our spenders.
     if (sel === APPROVE) {
+      if (to !== usdc && !tokens.has(to)) return "approval on unknown token";
       const spender = `0x${c.data.slice(34, 74)}`.toLowerCase();
       if (!ok.has(spender)) return "approval to unknown spender";
       continue;

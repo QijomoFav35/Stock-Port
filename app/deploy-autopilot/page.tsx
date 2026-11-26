@@ -23,7 +23,7 @@ export default function DeployAutoPilot() {
     try {
       const r = await fetch("/api/deploy-autopilot").then((x) => x.json());
       if (!r.bytecode) throw new Error(r.error ?? "No bytecode");
-      setOut(`Allowed stocks: ${(r.stocks as string[]).join(", ")}\n\nConfirm the deploy in your wallet…`);
+      setOut(`Allowed stocks: ${(r.stocks as string[]).join(", ")}\nLeft out: ${(r.skipped as string[]).join(", ") || "none"}\n\nConfirm the deploy in your wallet…`);
       const hash = await wallet.sendTransaction({ account: address, chain: base, data: r.bytecode as Hex });
       setOut(`Sent ${hash}. Waiting for the receipt…`);
       const rec = await publicClient.waitForTransactionReceipt({ hash });

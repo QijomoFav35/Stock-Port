@@ -2,7 +2,8 @@
  * AutoPilot (contracts/AutoPilot.sol): you set the rules, the agent trades your deposit inside them.
  * The contract has no owner. Only the agent you pick can trade, only USDC to an allowed stock and back,
  * never more often than your interval, and every swap must return at least Chainlink NAV minus your
- * slippage cap. Withdraw or exit() any time.
+ * slippage cap. It never trades while US markets are closed, waits at least a day between trades, uses one pinned
+ * pool per stock, and allows each stock once per rebalance (sells, then buys). Withdraw or exit() any time.
  *
  * Set NEXT_PUBLIC_AUTOPILOT_ADDRESS (and NEXT_PUBLIC_AUTOPILOT_FROM_BLOCK) after deploying from /deploy-autopilot.
  */
@@ -131,6 +132,7 @@ export const autoPilotAbi = [
       { type: "uint8", name: "decimals" },
       { type: "uint8", name: "feedDecimals" },
       { type: "bool", name: "allowed" },
+      { type: "int24", name: "tickSpacing" },
     ],
   },
   { type: "function", name: "balances", stateMutability: "view", inputs: [{ type: "address" }, { type: "address" }], outputs: [{ type: "uint256" }] },

@@ -10,7 +10,7 @@
  * refused with 409 peg_drift (lib/pegHealth.ts). Every quote carries `peg` so the review sheet can show it.
  */
 import { formatUnits, getAddress, type Address, type Hex } from "viem";
-import { USDC_BASE, USDC_DECIMALS } from "@/lib/constants";
+import { AGGREGATORS_ON, USDC_BASE, USDC_DECIMALS } from "@/lib/constants";
 import type { Leg } from "@/lib/baskets";
 import { resolveSymbols, type TokenizedStock } from "@/lib/tokenizedStocks";
 import { getZeroExQuote } from "@/lib/zeroEx";
@@ -24,7 +24,7 @@ const PERMIT2: Address = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
 
 export type Provider = "aerodrome" | "o1" | "0x";
 const available = (p: Provider) =>
-  p === "aerodrome" ? true : Boolean(p === "o1" ? process.env.O1_API_KEY : process.env.ZEROX_API_KEY);
+  p === "aerodrome" ? true : AGGREGATORS_ON && Boolean(p === "o1" ? process.env.O1_API_KEY : process.env.ZEROX_API_KEY);
 
 export type PortCall = { to: Address; data: Hex; value: Hex; label: string; permit2?: Eip712 };
 export type PortQuote = {
@@ -84,6 +84,7 @@ export async function quoteBasketBuy(p: {
   });
 
   const first = (forced ?? process.env.SWAP_PROVIDER ?? "aerodrome") as Provider;
+  if (forced && !available(forced)) throw new RouteError(400, { error: "route_off", message: `The ${forced} route is off.` });
   const order: Provider[] = forced
     ? [forced]
     : [first, ...(["aerodrome", "0x", "o1"] as Provider[]).filter((x) => x !== first)].filter(available);

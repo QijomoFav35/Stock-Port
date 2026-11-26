@@ -10,7 +10,7 @@
  */
 import { erc20Abi, formatUnits, getAddress, type Address } from "viem";
 import { publicClient } from "@/lib/publicClient";
-import { USDC_BASE } from "@/lib/constants";
+import { USDC_BASE, AGGREGATORS_ON } from "@/lib/constants";
 import { getBasket, type Basket } from "@/lib/baskets";
 import { resolveSymbols } from "@/lib/tokenizedStocks";
 import { buildAerodromeSells, feedPrice, findDeepestPool, AERODROME_ROUTER } from "@/lib/aerodrome";
@@ -78,7 +78,7 @@ export async function quoteRotate(p: {
       return { t, token, amount, via: pool && pool.usdc >= MIN_POOL_FOR_SELL ? ("aerodrome" as const) : ("o1" as const) };
     }),
   );
-  const noRoute = routed.filter((r) => r.via === "o1" && !process.env.O1_API_KEY).map((r) => r.t.symbol);
+  const noRoute = routed.filter((r) => r.via === "o1" && !(AGGREGATORS_ON && process.env.O1_API_KEY)).map((r) => r.t.symbol);
   if (noRoute.length) {
     throw new RouteError(422, { error: "no_sell_route", symbols: noRoute, message: `No route to sell ${noRoute.join(", ")} right now.` });
   }

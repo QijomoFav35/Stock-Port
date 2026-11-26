@@ -1,6 +1,11 @@
 import type { Address } from "viem";
 
 export const BASE_CHAIN_ID = 8453;
+/**
+ * o1 and 0x routes are off unless NEXT_PUBLIC_ENABLE_AGGREGATOR_ROUTES=1. Their calls go through a generic
+ * AllowanceHolder exec that the browser can't fully check, so only Aerodrome (checked call by call) is on by default.
+ */
+export const AGGREGATORS_ON = process.env.NEXT_PUBLIC_ENABLE_AGGREGATOR_ROUTES === "1";
 export const USDC_BASE: Address = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 export const USDC_DECIMALS = 6;
 

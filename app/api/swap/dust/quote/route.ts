@@ -13,6 +13,7 @@ import { getAddress, type Address, type Hex } from "viem";
 import { GEO_HEADER, isTradingBlocked } from "@/lib/geo";
 import { DUST_MAX_GAS_USD, DUST_MAX_IMPACT_BPS, DUST_MAX_TOKENS, USDC_BASE, USDC_DECIMALS } from "@/lib/constants";
 import { getZeroExQuote } from "@/lib/zeroEx";
+import { AGGREGATORS_ON } from "@/lib/constants";
 import { getUsdPrices } from "@/lib/alchemy";
 import { publicMessage } from "@/lib/safeError";
 
@@ -43,6 +44,7 @@ export type DustSkip = { token: Address; reason: "no_route" | "price_impact" | "
 export type DustQuote = { legs: DustLeg[]; skipped: DustSkip[]; minTotalUsdc: string; expiresAt: number };
 
 export async function POST(req: NextRequest) {
+  if (!AGGREGATORS_ON) return NextResponse.json({ error: "route_off", message: "Dust Sweep is off for now." }, { status: 503 });
   if (isTradingBlocked(req.headers.get(GEO_HEADER))) {
     return NextResponse.json({ error: "geo_blocked" }, { status: 451 });
   }

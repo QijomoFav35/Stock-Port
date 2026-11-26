@@ -7,8 +7,8 @@
  *
  * A test wallet gets 100 USDC through a state override. It deposits, writes rules, and picks an agent.
  * The agent buys NVDAc and sells it back through Aerodrome. Then we check that the guard rails hold:
- * a stranger can't rebalance, the interval rule blocks a second trade, rules need at least an hour between trades,
- * and exit() returns everything.
+ * the agent can't use another pool or buy and sell the same stock, a stranger can't rebalance, the interval rule
+ * blocks a second trade, rules need at least a day between trades, and exit() returns everything.
  */
 import { readFileSync } from "node:fs";
 import { encodeFunctionData, decodeFunctionResult, getContractAddress, getAddress, keccak256, encodeAbiParameters, pad, toHex, formatUnits } from "viem";
@@ -35,7 +35,6 @@ const NVDA = STOCKS[0][1];
 
 const bin = readFileSync("build/contracts_AutoPilot_sol_AutoPilot.bin", "utf8").trim();
 const abi = JSON.parse(readFileSync("build/contracts_AutoPilot_sol_AutoPilot.abi", "utf8"));
-const deployData = "0x" + bin + encodeAbiParameters([{ type: "address[]" }, { type: "address[]" }], [STOCKS.map((s) => s[1]), STOCKS.map((s) => s[2])]).slice(2);
 const AP = getContractAddress({ from: DEPLOYER, nonce: 0n });
 const erc20 = [{ type: "function", name: "approve", stateMutability: "nonpayable", inputs: [{ type: "address" }, { type: "uint256" }], outputs: [{ type: "bool" }] }];
 
@@ -54,39 +53,75 @@ const overrides = { [USDC]: { stateDiff: { [balSlot]: pad(toHex(DEPOSIT)) } } };
 // setPilot(agent, on, autoRotate, cutLosers, weekendPause, maxSlippageBps, minEdgeBps, cutAtBps, minInterval)
 const rules = (interval) => [AGENT, true, true, true, false, 300, 200, 500, interval];
 
-async function simulate(calls) {
-  const [block] = await rpc("eth_simulateV1", [{ blockStateCalls: [{ stateOverrides: overrides, calls }], validation: false }, "latest"]);
+const ethCall = async (to, a, functionName, args = []) =>
+  decodeFunctionResult({ abi: a, functionName, data: await rpc("eth_call", [{ to, data: encodeFunctionData({ abi: a, functionName, args }) }, "latest"]) });
+const ROUTER = "0x698Cb2b6dd822994581fEa6eA4Fc755d1363A92F";
+const routerAbi = [{ type: "function", name: "factory", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] }];
+const factoryAbi = [
+  { type: "function", name: "getPool", stateMutability: "view", inputs: [{ type: "address" }, { type: "address" }, { type: "int24" }], outputs: [{ type: "address" }] },
+];
+const balAbi = [{ type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] }];
+
+// Pin each stock to the router-factory USDC pool holding the most USDC (the deploy page does the same, plus a NAV check).
+const factory = await ethCall(ROUTER, routerAbi, "factory");
+const TICKS = [];
+for (const [sym, token] of STOCKS) {
+  let best = { ts: undefined, usdc: -1n };
+  for (const ts of [1, 10, 50, 100, 200, 2000]) {
+    const pool = await ethCall(factory, factoryAbi, "getPool", [USDC, token, ts]);
+    if (/^0x0{40}$/i.test(pool)) continue;
+    const usdc = await ethCall(USDC, balAbi, "balanceOf", [pool]);
+    if (usdc > best.usdc) best = { ts, usdc };
+  }
+  if (best.ts === undefined) throw new Error(`No USDC pool for ${sym}`);
+  TICKS.push(best.ts);
+}
+const tick = TICKS[0];
+const deployData =
+  "0x" +
+  bin +
+  encodeAbiParameters([{ type: "address[]" }, { type: "address[]" }, { type: "int24[]" }], [STOCKS.map((s) => s[1]), STOCKS.map((s) => s[2]), TICKS]).slice(2);
+
+// Same window as the contract: closed Fri 20:00 UTC to Mon 01:00 UTC and on NYSE holidays. Simulate at the next open hour.
+const HOLIDAYS = new Set([20783, 20812, 20819, 20836, 20864, 20903, 20969, 20987, 21004, 21067, 21147, 21176]);
+const closed = (ts) => {
+  const d = Math.floor(ts / 86400), day = (d + 4) % 7, h = Math.floor((ts % 86400) / 3600);
+  if ((day === 5 && h >= 20) || day === 6 || day === 0 || (day === 1 && h < 1)) return true;
+  return HOLIDAYS.has(d) || (h < 1 && HOLIDAYS.has(d - 1));
+};
+const head = Number(BigInt((await rpc("eth_getBlockByNumber", ["latest", false])).timestamp));
+let at = head + 60;
+while (closed(at)) at += 3600;
+
+async function simulate(calls, time = at) {
+  const [block] = await rpc("eth_simulateV1", [{ blockStateCalls: [{ blockOverrides: { time: toHex(time) }, stateOverrides: overrides, calls }], validation: false }, "latest"]);
   return block.calls;
 }
+if (closed(head)) console.log(`Markets are closed now, so the trades are simulated at ${new Date(at * 1000).toISOString()}.`);
 
-// Find the NVDAc pool's tick spacing on the router's factory by trying each one.
+const DAY = 86400;
 const setup = [
   { from: DEPLOYER, data: deployData },
   call(USER, USDC, erc20, "approve", [AP, DEPOSIT]),
   call(USER, AP, abi, "deposit", [USDC, DEPOSIT]),
-  call(USER, AP, abi, "setPilot", rules(3600)),
+  call(USER, AP, abi, "setPilot", rules(DAY)),
 ];
-let tick;
-for (const t of [1, 10, 50, 100, 200, 2000]) {
-  const r = await simulate([...setup, call(AGENT, AP, abi, "rebalance", [USER, [{ tokenIn: USDC, tokenOut: NVDA, amountIn: BUY, tickSpacing: t }]])]);
-  if (r[0].status !== "0x1") throw new Error(`deploy failed: ${r[0].error?.message}`);
-  if (r[4].status === "0x1") {
-    tick = t;
-    break;
-  }
-}
-if (tick === undefined) throw new Error("No NVDAc/USDC pool found on the router for any tick spacing.");
-
+const wrongTick = [1, 10, 50, 100, 200, 2000].find((t) => t !== tick);
 const steps = [
-  ["deploy", ...setup.slice(0, 1)],
+  ["deploy", setup[0]],
   ["approve USDC", setup[1]],
   ["deposit 100 USDC", setup[2]],
-  ["set rules + agent (1-hour interval)", setup[3]],
+  ["set rules + agent (1-day interval)", setup[3]],
+  ["agent uses a different pool (must revert)", call(AGENT, AP, abi, "rebalance", [USER, [{ tokenIn: USDC, tokenOut: NVDA, amountIn: BUY, tickSpacing: wrongTick }]])],
+  [
+    "agent buys and sells the same stock (must revert)",
+    call(AGENT, AP, abi, "rebalance", [USER, [{ tokenIn: USDC, tokenOut: NVDA, amountIn: BUY, tickSpacing: tick }, { tokenIn: NVDA, tokenOut: USDC, amountIn: 1n, tickSpacing: tick }]]),
+  ],
+  ["stranger tries to rebalance (must revert)", call(STRANGER, AP, abi, "rebalance", [USER, [{ tokenIn: USDC, tokenOut: NVDA, amountIn: 1n, tickSpacing: tick }]])],
   ["agent buys 50 USDC of NVDAc", call(AGENT, AP, abi, "rebalance", [USER, [{ tokenIn: USDC, tokenOut: NVDA, amountIn: BUY, tickSpacing: tick }]])],
   ["NVDAc balance", call(AGENT, AP, abi, "balances", [USER, NVDA])],
-  ["stranger tries to rebalance (must revert)", call(STRANGER, AP, abi, "rebalance", [USER, [{ tokenIn: USDC, tokenOut: NVDA, amountIn: 1n, tickSpacing: tick }]])],
   ["agent trades again too soon (must revert)", call(AGENT, AP, abi, "rebalance", [USER, [{ tokenIn: USDC, tokenOut: NVDA, amountIn: 1n, tickSpacing: tick }]])],
-  ["rules with no wait between trades (must revert)", call(USER, AP, abi, "setPilot", rules(0))],
+  ["rules with only 1 hour between trades (must revert)", call(USER, AP, abi, "setPilot", rules(3600))],
   ["user exits", call(USER, AP, abi, "exit", [])],
   ["USDC left inside", call(AGENT, AP, abi, "balances", [USER, USDC])],
   ["NVDAc left inside", call(AGENT, AP, abi, "balances", [USER, NVDA])],
@@ -95,11 +130,11 @@ const r = await simulate(steps.map((s) => s[1]));
 const ok = (i) => r[i].status === "0x1";
 steps.forEach(([name], i) => console.log(`${ok(i) ? "ok " : "REV"} ${name}${r[i].error ? `  (${r[i].error.message})` : ""}`));
 
-const nvda = decodeFunctionResult({ abi, functionName: "balances", data: r[5].returnData });
-const left = decodeFunctionResult({ abi, functionName: "balances", data: r[10].returnData });
-const leftNvda = decodeFunctionResult({ abi, functionName: "balances", data: r[11].returnData });
-console.log(`\nPool tick spacing ${tick}. Bought ${formatUnits(nvda, 8)} NVDAc for 50 USDC. After exit, left inside: ${formatUnits(left, 6)} USDC, ${formatUnits(leftNvda, 8)} NVDAc.`);
+const nvda = decodeFunctionResult({ abi, functionName: "balances", data: r[8].returnData });
+const left = decodeFunctionResult({ abi, functionName: "balances", data: r[12].returnData });
+const leftNvda = decodeFunctionResult({ abi, functionName: "balances", data: r[13].returnData });
+console.log(`\nPinned pools (tick spacing): ${STOCKS.map((s, i) => `${s[0]} ${TICKS[i]}`).join(", ")}.\nBought ${formatUnits(nvda, 8)} NVDAc for 50 USDC. After exit, left inside: ${formatUnits(left, 6)} USDC, ${formatUnits(leftNvda, 8)} NVDAc.`);
 
-const pass = [0, 1, 2, 3, 4, 5, 9, 10, 11].every(ok) && !ok(6) && !ok(7) && !ok(8) && nvda > 0n && left === 0n && leftNvda === 0n;
-console.log(pass ? "\nPASS: agent traded within the rules, strangers, early trades and no-wait rules were refused, and exit returned everything." : "\nFAIL: see the lines above.");
+const pass = [0, 1, 2, 3, 7, 8, 11, 12, 13].every(ok) && [4, 5, 6, 9, 10].every((i) => !ok(i)) && nvda > 0n && left === 0n && leftNvda === 0n;
+console.log(pass ? "\nPASS: agent traded within the rules; other pools, round trips, strangers, early trades and short intervals were refused; exit returned everything." : "\nFAIL: see the lines above.");
 process.exit(pass ? 0 : 1);

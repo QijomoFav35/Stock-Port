@@ -43,13 +43,10 @@ export function clientIp(h: Headers): string | undefined {
   const only = process.env.CLIENT_IP_HEADER?.trim().toLowerCase();
   if (only) return h.get(only)?.split(",")[0]?.trim() || undefined;
   if (geoSource() === "cloudflare") return h.get("cf-connecting-ip") ?? undefined;
-  return (
-    h.get("cf-connecting-ip") ??
-    h.get("true-client-ip") ??
-    h.get("x-real-ip") ??
-    h.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    undefined
-  );
+  // Anyone can send x-forwarded-for, cf-connecting-ip or x-real-ip themselves. The host's proxy appends the address
+  // it actually saw to the END of x-forwarded-for, so only the last entry is trusted.
+  const xff = h.get("x-forwarded-for")?.split(",").map((x) => x.trim()).filter(Boolean);
+  return xff?.length ? xff[xff.length - 1] : undefined;
 }
 
 const cache = new Map<string, { country: string; at: number }>();

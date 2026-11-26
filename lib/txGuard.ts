@@ -13,7 +13,7 @@
  */
 import { decodeFunctionData, getAddress, isAddressEqual, toFunctionSelector, type Address, type Hex } from "viem";
 import { slipstreamRouterAbi } from "@/lib/aerodrome";
-import { USDC_BASE } from "@/lib/constants";
+import { AGGREGATORS_ON, USDC_BASE } from "@/lib/constants";
 
 /** Official contracts on Base mainnet. Each links to its verified source on Basescan. */
 export const KNOWN_CONTRACTS = {
@@ -66,6 +66,7 @@ export function checkApproval(
   maxAmount: bigint,
   expectedToken: Address = USDC_BASE,
 ) {
+  if (provider !== "aerodrome" && !AGGREGATORS_ON) throw new UnsafeTransactionError(`the ${provider} route is off`);
   if (!approval) return;
   if (!isAddressEqual(approval.token, expectedToken)) throw new UnsafeTransactionError("approval for an unexpected token");
   const allowed: Record<Provider, Address> = {
@@ -84,6 +85,7 @@ export function checkApproval(
 
 /** Each swap call must target the route's official contract and pay out to the user. */
 export function checkSwapCall(provider: Provider, call: Call, account: Address) {
+  if (provider !== "aerodrome" && !AGGREGATORS_ON) throw new UnsafeTransactionError(`the ${provider} route is off`);
   if (BigInt(call.value || "0") !== 0n) throw new UnsafeTransactionError("a swap asked for ETH");
   const selector = call.data.slice(0, 10).toLowerCase() as Hex;
   if (FORBIDDEN_SELECTORS.has(selector)) throw new UnsafeTransactionError("a call tried to move or approve tokens directly");
@@ -128,6 +130,7 @@ export function checkSellApproval(
 
 /** Rotate: a sell must go to the route's official contract; Aerodrome sells must pay USDC to the user with a minimum. */
 export function checkSellCall(provider: "aerodrome" | "o1", call: Call, account: Address, legs: { token: Address }[]) {
+  if (provider !== "aerodrome" && !AGGREGATORS_ON) throw new UnsafeTransactionError(`the ${provider} route is off`);
   if (BigInt(call.value || "0") !== 0n) throw new UnsafeTransactionError("a swap asked for ETH");
   const selector = call.data.slice(0, 10).toLowerCase() as Hex;
   if (FORBIDDEN_SELECTORS.has(selector)) throw new UnsafeTransactionError("a call tried to move or approve tokens directly");

@@ -7,7 +7,7 @@
  *    dry-runs the rebalance, and sends it with the Builder Code.
  *
  * The contract enforces the limits itself (agent only, interval, weekend pause, NAV floor), so this code
- * can only pick moves inside them. Env: AUTOPILOT_AGENT_KEY, or KEEPER_PRIVATE_KEY (gas wallet).
+ * can only pick moves inside them. Env: AUTOPILOT_AGENT_KEY (its own gas wallet, never the Loan Guard keeper key).
  */
 import { createWalletClient, encodeFunctionData, getAddress, http, isAddressEqual, type Address, type Hash, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -19,7 +19,6 @@ import { marketClosed } from "@/lib/marketClock";
 import { BASKETS, UNIVERSE } from "@/lib/baskets";
 import { getLeaderboard } from "@/lib/leaderboard";
 import { listTokenizedStocks } from "@/lib/tokenizedStocks";
-import { findDeepestPool } from "@/lib/aerodrome";
 import { USDC_BASE } from "@/lib/constants";
 import { DATA_SUFFIX, withBuilderCode } from "@/lib/attribution";
 
@@ -42,13 +41,15 @@ export const pilotLog = () => (g.__apLog ??= []);
 export class PilotBusyError extends Error {}
 
 function agentAccount() {
-  const pk = (process.env.AUTOPILOT_AGENT_KEY || process.env.KEEPER_PRIVATE_KEY) as Hex | undefined;
-  return pk ? privateKeyToAccount(pk) : undefined;
+  // Its own key: the Loan Guard keeper key only pays gas, this one can trade inside users' rules.
+  const pk = process.env.AUTOPILOT_AGENT_KEY as Hex | undefined;
+  if (!pk || pk === process.env.KEEPER_PRIVATE_KEY) return undefined;
+  return privateKeyToAccount(pk);
 }
 /** The agent's public address, which users pick in setPilot. */
 export const agentAddress = (): Address | undefined => agentAccount()?.address;
 
-type StockRow = { token: Address; symbol: string; decimals: number; feed: Address; feedDecimals: number };
+type StockRow = { token: Address; symbol: string; decimals: number; feed: Address; feedDecimals: number; tickSpacing: number };
 
 async function contractStocks(ap: Address): Promise<StockRow[]> {
   const n = await publicClient.readContract({ address: ap, abi: autoPilotAbi, functionName: "stockCount" });
@@ -64,8 +65,15 @@ async function contractStocks(ap: Address): Promise<StockRow[]> {
   const listed = await listTokenizedStocks();
   const sym = new Map(listed.map((t) => [t.contract_address.toLowerCase(), t.symbol]));
   return tokens.map((token, i) => {
-    const s = info[i] as unknown as readonly [Address, number, number, boolean];
-    return { token: getAddress(token), symbol: sym.get(token.toLowerCase()) ?? token, feed: s[0], decimals: Number(s[1]), feedDecimals: Number(s[2]) };
+    const s = info[i] as unknown as readonly [Address, number, number, boolean, number];
+    return {
+      token: getAddress(token),
+      symbol: sym.get(token.toLowerCase()) ?? token,
+      feed: s[0],
+      decimals: Number(s[1]),
+      feedDecimals: Number(s[2]),
+      tickSpacing: Number(s[4]),
+    };
   });
 }
 
@@ -93,16 +101,6 @@ async function navPrices(rows: StockRow[]): Promise<Map<string, number>> {
     }
   });
   return out;
-}
-
-/** Tick spacing of the deepest router pool for a stock, cached 10 min. */
-async function tickFor(token: Address): Promise<number | undefined> {
-  const cache = (g.__apPools ??= new Map());
-  const hit = cache.get(token.toLowerCase());
-  if (hit && Date.now() - hit.at < 600_000) return hit.ts;
-  const p = await findDeepestPool(token).catch(() => undefined);
-  cache.set(token.toLowerCase(), { at: Date.now(), ts: p?.tickSpacing });
-  return p?.tickSpacing;
 }
 
 export async function listPilots(ap: Address): Promise<{ user: Address; pilot: OnchainPilot }[]> {
@@ -135,7 +133,7 @@ export async function runPilots(): Promise<PilotRun> {
 
 async function pass(ap: Address): Promise<PilotRun> {
   const account = agentAccount();
-  if (!account) throw new Error("AUTOPILOT_AGENT_KEY or KEEPER_PRIVATE_KEY is not set");
+  if (!account) throw new Error("AUTOPILOT_AGENT_KEY is not set (or equals KEEPER_PRIVATE_KEY)");
   const wallet = createWalletClient({ account, chain: base, transport: http(process.env.BASE_RPC_URL || undefined) });
   const now = Date.now();
   const closed = marketClosed(now);
@@ -171,8 +169,8 @@ async function pass(ap: Address): Promise<PilotRun> {
     const heldUsd = Object.fromEntries(BASKETS.map((b) => [b.id, b.legs.reduce((s, l) => s + (held.get(l.symbol)?.usd ?? 0), 0)]));
 
     const next = pilot.lastTrade ? (pilot.lastTrade + pilot.minInterval) * 1000 : 0;
-    if (pilot.weekendPause && closed) {
-      entry("hold", "Markets are closed and NAV is frozen. Your weekend rule says wait for the open.");
+    if (closed) {
+      entry("hold", "Markets are closed and NAV is frozen. AutoPilot waits for the open.");
       continue;
     }
     if (next > now) {
@@ -206,32 +204,20 @@ async function pass(ap: Address): Promise<PilotRun> {
       continue;
     }
 
+    // Sells first, then buys, each stock once, each in the pool pinned in the contract.
     const legs: Leg[] = [];
-    let missing = "";
     for (const [s, h] of sells) {
       const r = bySym.get(s)!;
-      const ts = await tickFor(r.token);
-      if (ts === undefined) missing = s;
-      else legs.push({ tokenIn: r.token, tokenOut: USDC_BASE, amountIn: h.raw, tickSpacing: ts });
+      legs.push({ tokenIn: r.token, tokenOut: USDC_BASE, amountIn: h.raw, tickSpacing: r.tickSpacing });
     }
     let spent = 0n;
     for (const [i, l] of target.legs.entries()) {
       const r = bySym.get(l.symbol)!;
       const amt = i === target.legs.length - 1 ? budget - spent : (budget * BigInt(l.weightBps)) / 10_000n;
       if (amt < MIN_LEG_USDC) continue;
-      const ts = await tickFor(r.token);
-      if (ts === undefined) {
-        missing = l.symbol;
-        continue;
-      }
-      legs.push({ tokenIn: USDC_BASE, tokenOut: r.token, amountIn: amt, tickSpacing: ts });
+      legs.push({ tokenIn: USDC_BASE, tokenOut: r.token, amountIn: amt, tickSpacing: r.tickSpacing });
       spent += amt;
     }
-    if (missing) {
-      entry("skip", `${d.reason} Held back: no deep enough pool for ${missing} right now.`);
-      continue;
-    }
-
     const data = encodeFunctionData({ abi: autoPilotAbi, functionName: "rebalance", args: [user, legs.map((l) => ({ ...l }))] });
     const tagged = DATA_SUFFIX ? withBuilderCode(data) : data;
     try {

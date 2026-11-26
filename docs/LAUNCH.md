@@ -7,7 +7,7 @@
 
 ## Render environment (Dashboard → your service → Environment)
 Server only: `BASE_RPC_URL`, `ALCHEMY_API_KEY`, `ZEROX_API_KEY`, `O1_API_KEY`, `IPINFO_TOKEN`, `GEO_SOURCE=ipinfo`,
-`STATS_FROM_BLOCK` (launch block, for /stats), `CDP_PAYMASTER_URL` (optional), `FEEDBACK_WEBHOOK_URL` (optional), `KEEPER_PRIVATE_KEY`, `KEEPER_CRON_SECRET`, `AUTOPILOT_AGENT_KEY` (optional, defaults to the keeper key), `BANKR_API_KEY` (later).
+`STATS_FROM_BLOCK` (launch block, for /stats), `CDP_PAYMASTER_URL` (optional), `FEEDBACK_WEBHOOK_URL` (optional), `KEEPER_PRIVATE_KEY`, `KEEPER_CRON_SECRET`, `AUTOPILOT_AGENT_KEY` (its own wallet, never the keeper key), `BANKR_API_KEY` (later).
 
 Public: `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_BASE_BUILDER_CODE`, `NEXT_PUBLIC_LOAN_GUARD_ADDRESS`,
 `NEXT_PUBLIC_LOAN_GUARD_FROM_BLOCK`, `NEXT_PUBLIC_AUTOPILOT_ADDRESS`, `NEXT_PUBLIC_AUTOPILOT_FROM_BLOCK`, analytics ids. Never set `NEXT_PUBLIC_GUARD_PREVIEW` on Render.
@@ -19,9 +19,9 @@ gas credits on other contracts.
 
 ## After every deploy (5 minutes)
 - `/api/geo` shows your country and `tradingBlocked: false` (and `true` from a US VPN).
-- Faked IP test: `curl -s -H "cf-connecting-ip: 8.8.8.8" -H "x-real-ip: 8.8.8.8" -H "true-client-ip: 8.8.8.8" https://YOUR-SITE/api/geo`
-  must still show your own country, not `US`. If it shows `US`, set `CLIENT_IP_HEADER` on Render to the header that
-  Render itself sets, redeploy and test again.
+- Faked IP test: `curl -s -H "x-forwarded-for: 8.8.8.8" -H "cf-connecting-ip: 8.8.8.8" -H "x-real-ip: 8.8.8.8" -H "true-client-ip: 8.8.8.8" https://YOUR-SITE/api/geo`
+  must still show your own country, not `US`. The app trusts only the last x-forwarded-for entry (added by Render's
+  proxy). If it shows `US`, set `CLIENT_IP_HEADER` on Render to the header that Render itself sets, redeploy and test again.
 - Home, /borrow, /baskets, /sweep, /race, /next and /privacy load on desktop and on a phone.
 - Browser devtools → Network: no request contains your Alchemy key (browser reads go to `/api/rpc`).
 - `/robots.txt` and `/sitemap.xml` show the live domain.
@@ -37,8 +37,9 @@ gas credits on other contracts.
 - **AutoPilot contract:** no owner, no pause. Each user can switch their agent off (`setPilot` with on = false) or call `exit()`
   on Basescan at any time. To stop new sign-ups, remove `NEXT_PUBLIC_AUTOPILOT_ADDRESS` and redeploy.
 - **Keeper or AutoPilot agent misbehaving:** pause its Render cron job (`/api/guard/keeper` or `/api/autopilot/run`). The
-  contracts cap what a bad agent key can do: one move per user interval (at least an hour), USDC to allowed stocks and back
-  only, and every swap within the user's slippage cap of Chainlink NAV. Rotate the key and users keep their funds.
+  contracts cap what a bad agent key can do: one rebalance per user interval (at least a day), each stock once per
+  rebalance in its pinned pool, USDC to allowed stocks and back only, never while markets are closed, and every swap within
+  the user's slippage cap of Chainlink NAV. Rotate the key and users keep their funds.
 - **A leaked key:** rotate it at the provider first, then update Render and `.env.local`, then redeploy.
 
 ## Cron jobs (Render → New → Cron Job, every 5 minutes)

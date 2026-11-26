@@ -10,12 +10,14 @@ pragma solidity ^0.8.24;
  * Rules you set (all stored here, readable by anyone):
  *  - autoRotate + minEdgeBps: move into the 7-day leader when it beats your basket by at least this much.
  *  - cutLosers + cutAtBps: leave a basket that's down this much over 7 days.
- *  - weekendPause: no trades while US markets are closed and NAV is frozen.
- *  - minInterval: at most one rebalance per this many seconds.
+ *  - weekendPause: shown in the app; the contract never trades while US markets are closed and NAV is frozen.
+ *  - minInterval: at most one rebalance per this many seconds (at least one day).
  *  - maxSlippageBps: every swap must return at least the Chainlink NAV value minus this (max 3%).
  *
  * What the agent can do: call rebalance(user, legs) for users who chose it, swapping between USDC and the
- * stocks fixed at deploy, through the Aerodrome Slipstream router, with every leg priced against Chainlink.
+ * stocks fixed at deploy, through the one Aerodrome Slipstream pool pinned per stock at deploy, with every leg
+ * priced against Chainlink. Sells come first, then buys, and each stock appears once, so a rebalance can't
+ * buy and sell the same stock back and forth.
  * What it can't do: withdraw, send funds anywhere, trade other tokens, trade more often than your rule,
  * trade at a worse price than your slippage cap, or act after you switch it off.
  * You can withdraw everything at any time. No owner, no admin key, no upgrade path.
@@ -56,14 +58,16 @@ contract AutoPilot {
     /// Chainlink stock feeds hold over weekends and holidays, so allow up to 4 days.
     uint256 public constant MAX_FEED_AGE = 4 days;
     uint256 public constant MIN_DEPOSIT = 1e6; // 1 USDC to join the agent's list
-    /// At least an hour between agent trades, so even a leaked agent key can't churn your balance.
-    uint256 public constant MIN_INTERVAL = 1 hours;
+    /// At least a day between agent trades. With one pass per stock per rebalance, a leaked agent key can
+    /// cost at most the user's slippage cap once a day, never a loop of trades.
+    uint256 public constant MIN_INTERVAL = 1 days;
 
     struct Stock {
         address feed;
         uint8 decimals;
         uint8 feedDecimals;
         bool allowed;
+        int24 tickSpacing; // the one USDC pool on the router's factory this stock trades in
     }
 
     struct Pilot {
@@ -97,6 +101,8 @@ contract AutoPilot {
 
     event Deposited(address indexed user, address indexed token, uint256 amount);
     event Withdrawn(address indexed user, address indexed token, uint256 amount);
+    /// exit() skips a token whose transfer fails (e.g. paused), so everything else still comes out.
+    event WithdrawSkipped(address indexed user, address indexed token, uint256 amount);
     event PilotSet(address indexed user, address indexed agent, bool on, uint256 minEdgeBps, uint256 cutAtBps, uint256 minInterval, bool weekendPause);
     event Traded(address indexed user, address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut, uint256 minOut);
     event Rebalanced(address indexed user, address indexed agent, uint256 legs);
@@ -109,6 +115,7 @@ contract AutoPilot {
     error MarketClosed();
     error StaleFeed(address token);
     error TooManyLegs();
+    error BadLegs();
     error Insufficient();
     error TransferFailed();
     error Reentrancy();
@@ -120,15 +127,17 @@ contract AutoPilot {
         locked = false;
     }
 
-    /// @param tokens tokenized stocks the agent may trade; @param feeds their Chainlink NAV feeds (same order).
-    constructor(address[] memory tokens, address[] memory feeds) {
-        if (tokens.length != feeds.length || tokens.length == 0) revert BadRules();
+    /// @param tokens tokenized stocks the agent may trade; @param feeds their Chainlink NAV feeds;
+    /// @param tickSpacings the USDC pool each one trades in (all three in the same order).
+    constructor(address[] memory tokens, address[] memory feeds, int24[] memory tickSpacings) {
+        if (tokens.length != feeds.length || tokens.length != tickSpacings.length || tokens.length == 0) revert BadRules();
         for (uint256 i = 0; i < tokens.length; i++) {
             stocks[tokens[i]] = Stock({
                 feed: feeds[i],
                 decimals: _decimals(tokens[i]),
                 feedDecimals: IFeed(feeds[i]).decimals(),
-                allowed: true
+                allowed: true,
+                tickSpacing: tickSpacings[i]
             });
             stockList.push(tokens[i]);
         }
@@ -185,14 +194,15 @@ contract AutoPilot {
         emit Withdrawn(msg.sender, token, amount);
     }
 
-    /// Switch the agent off and take everything out in one call.
-    function exit() external {
+    /// Switch the agent off and take everything out in one call. A token that can't be sent right now
+    /// (for example a paused stock) stays inside for later; it never blocks the rest.
+    function exit() external nonReentrant {
         pilots[msg.sender].on = false;
         address[] memory list = stockList;
         for (uint256 i = 0; i < list.length; i++) {
-            if (balances[msg.sender][list[i]] > 0) withdraw(list[i], type(uint256).max);
+            _release(msg.sender, list[i]);
         }
-        if (balances[msg.sender][address(USDC)] > 0) withdraw(address(USDC), type(uint256).max);
+        _release(msg.sender, address(USDC));
     }
 
     // ---------------------------------------------------------------- the agent
@@ -206,8 +216,21 @@ contract AutoPilot {
         if (legs.length == 0 || legs.length > MAX_LEGS) revert TooManyLegs();
         uint256 next = uint256(p.lastTrade) + p.minInterval;
         if (p.lastTrade != 0 && block.timestamp < next) revert TooSoon(next);
-        if (p.weekendPause && isMarketClosed(block.timestamp)) revert MarketClosed();
+        // NAV is frozen while markets are closed, so the price floor would be stale: never trade then.
+        if (isMarketClosed(block.timestamp)) revert MarketClosed();
 
+        // Sells first, then buys, and each stock at most once: no round trips inside one rebalance.
+        bool buying;
+        for (uint256 i = 0; i < legs.length; i++) {
+            bool buy = legs[i].tokenIn == address(USDC);
+            if (buy) buying = true;
+            else if (buying) revert BadLegs();
+            address stock = buy ? legs[i].tokenOut : legs[i].tokenIn;
+            for (uint256 j = 0; j < i; j++) {
+                address other = legs[j].tokenIn == address(USDC) ? legs[j].tokenOut : legs[j].tokenIn;
+                if (other == stock) revert BadLegs();
+            }
+        }
         for (uint256 i = 0; i < legs.length; i++) {
             _trade(user, legs[i], p.maxSlippageBps);
         }
@@ -220,6 +243,7 @@ contract AutoPilot {
         bool buy = leg.tokenIn == address(USDC);
         address stock = buy ? leg.tokenOut : leg.tokenIn;
         if (!stocks[stock].allowed || (buy ? leg.tokenIn : leg.tokenOut) != address(USDC)) revert NotAllowed();
+        if (leg.tickSpacing != stocks[stock].tickSpacing) revert NotAllowed();
         if (leg.amountIn == 0 || leg.amountIn > balances[user][leg.tokenIn]) revert Insufficient();
 
         uint256 minOut = quoteMinOut(stock, buy, leg.amountIn, slippageBps);
@@ -292,6 +316,19 @@ contract AutoPilot {
     }
 
     // ---------------------------------------------------------------- internals
+
+    function _release(address user, address token) private {
+        uint256 bal = balances[user][token];
+        if (bal == 0) return;
+        balances[user][token] = 0;
+        (bool ok, bytes memory data) = token.call(abi.encodeWithSelector(IERC20.transfer.selector, user, bal));
+        if (ok && (data.length == 0 || abi.decode(data, (bool)))) {
+            emit Withdrawn(user, token, bal);
+        } else {
+            balances[user][token] = bal;
+            emit WithdrawSkipped(user, token, bal);
+        }
+    }
 
     function _pull(address token, uint256 amount) private returns (uint256) {
         uint256 before = IERC20(token).balanceOf(address(this));
