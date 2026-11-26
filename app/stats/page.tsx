@@ -17,7 +17,7 @@ export default function StatsPage() {
           label="Port traffic"
           title={
             <>
-              Every tx, <em>onchain and checkable.</em>
+              Every tx, <em>onchain and verifiable.</em>
             </>
           }
           sub="We count only txs on Base that carry the Stock Port Builder Code. Nothing self-reported: every row links to Basescan."

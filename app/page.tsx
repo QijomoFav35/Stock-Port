@@ -109,7 +109,7 @@ export default async function Home() {
             Your port of entry to <em>Tokenized Stocks.</em>
           </h1>
           <p className="r3 muted" style={{ maxWidth: 620, margin: "22px auto 0", fontSize: 19 }}>
-            Like an airport, but for stocks. Buy, borrow, rotate and sweep tokenized stocks from one terminal on Base.
+            Just like an airport, but for stocks. Buy, borrow, rotate and sweep tokenized stocks from one terminal on Base.
             Open 24/7, every move in one tx, self-custody all the way.
           </p>
           <div className="r4" style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 34, flexWrap: "wrap" }}>
