@@ -10,7 +10,7 @@ import type { IconName } from "@/lib/icons";
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
-/** Wallets we list, in this order. Anything else an extension announces is hidden; WalletConnect covers the rest. */
+/** Wallets we list, in this order. Anything else an extension announces is hidden. */
 const WALLET_ORDER: { key: string; match: (id: string, name: string) => boolean }[] = [
   { key: "base", match: (id, n) => id === "baseAccount" || /base account/i.test(n) },
   { key: "metamask", match: (id, n) => id === "metaMask" || id === "io.metamask" || /metamask/i.test(n) },
@@ -22,7 +22,6 @@ const WALLET_ORDER: { key: string; match: (id: string, name: string) => boolean 
   { key: "okx", match: (id, n) => id === "com.okex.wallet" || /okx/i.test(n) },
   { key: "zerion", match: (id, n) => id === "io.zerion.wallet" || /zerion/i.test(n) },
   { key: "browser", match: (id) => id === "injected" },
-  { key: "walletconnect", match: (id) => id === "walletConnect" },
 ];
 
 /** Popular wallets only, one entry each, in WALLET_ORDER. */
@@ -35,7 +34,7 @@ function pickConnectors<T extends { id: string; name: string }>(all: readonly T[
     if (best) out.push(best);
   }
   // A generic "Browser wallet" is only useful when no named wallet was found.
-  const named = out.filter((c) => c.id !== "injected" && c.id !== "baseAccount" && c.id !== "walletConnect");
+  const named = out.filter((c) => c.id !== "injected" && c.id !== "baseAccount");
   return named.length ? out.filter((c) => c.id !== "injected") : out;
 }
 
@@ -46,7 +45,6 @@ function walletIcon(name: string): IconName {
   if (n.includes("rabby")) return "w-rabby";
   if (n.includes("rainbow")) return "w-rainbow";
   if (n.includes("phantom")) return "w-phantom";
-  if (n.includes("walletconnect")) return "w-walletconnect";
   return "ph-wallet";
 }
 

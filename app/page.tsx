@@ -13,7 +13,7 @@ const WALLETS: [IconName, string][] = [
   ["w-metamask", "MetaMask"],
   ["w-rabby", "Rabby"],
   ["w-rainbow", "Rainbow"],
-  ["w-walletconnect", "WalletConnect"],
+  ["w-phantom", "Phantom"],
 ];
 
 function TokenLogo({ t, size = 40 }: { t?: TokenizedStock; size?: number }) {
@@ -195,7 +195,7 @@ export default async function Home() {
         <div className="steps">
           {(
             [
-              ["ph-wallet", "Connect your wallet", "Base Account, MetaMask, Rabby, Rainbow or WalletConnect. Your keys never leave your wallet."],
+              ["ph-wallet", "Connect your wallet", "Base Account, MetaMask, Coinbase Wallet, Rabby or Phantom. Your keys never leave your wallet."],
               ["ph-arrows-left-right", "Borrow and guard", "Borrow USDC against your stocks, then arm Loan Guard with a USDC reserve. Each move is one review and one signature."],
               ["ph-eye", "Verify onchain", "Every tx carries our Builder Code and shows up on Basescan. Don't trust, verify."],
             ] as [IconName, string, string][]

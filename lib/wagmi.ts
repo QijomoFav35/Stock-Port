@@ -1,6 +1,6 @@
 import { createConfig, http } from "wagmi";
 import { base } from "wagmi/chains";
-import { baseAccount, injected, walletConnect } from "wagmi/connectors";
+import { baseAccount, injected } from "wagmi/connectors";
 import { rpcUrl } from "@/lib/rpc";
 
 /**
@@ -9,14 +9,7 @@ import { rpcUrl } from "@/lib/rpc";
  * (wagmi #5248), so the Builder Code is attached per call in hooks/usePortBundle.ts.
  *
  * Installed wallets are also found through EIP-6963; ConnectButton shows only the popular ones (WALLET_ORDER).
- *
- * WalletConnect (QR code for phone wallets) turns on when NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
- * is set. Get a free project ID at dashboard.reown.com.
  */
-const wcProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
-const appUrl =
-  process.env.NEXT_PUBLIC_SITE_URL ?? (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
-
 export const config = createConfig({
   chains: [base],
   connectors: [
@@ -24,20 +17,6 @@ export const config = createConfig({
     // MetaMask by name, so it shows even when another extension takes over window.ethereum.
     injected({ target: "metaMask" }),
     injected(),
-    ...(wcProjectId
-      ? [
-          walletConnect({
-            projectId: wcProjectId,
-            showQrModal: true,
-            metadata: {
-              name: "Stock Port",
-              description: "Port USDC into a basket of tokenized stocks on Base",
-              url: appUrl,
-              icons: [],
-            },
-          }),
-        ]
-      : []),
   ],
   transports: { [base.id]: http(rpcUrl()) },
   ssr: true,

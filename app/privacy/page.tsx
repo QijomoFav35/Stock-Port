@@ -46,7 +46,7 @@ export default function PrivacyPage() {
         <li>o1 Exchange, Aerodrome and 0x (swap quotes; they see the wallet address and amount)</li>
         <li>Aave (lending market data), Chainlink (NAV feeds), Coinbase (tokenized stock list)</li>
         <li>ipinfo.io (country check)</li>
-        <li>Your wallet provider, such as Base Account, MetaMask, Rabby, Rainbow or WalletConnect</li>
+        <li>Your wallet provider, such as Base Account, MetaMask, Coinbase Wallet, Rabby or Phantom</li>
       </ul>
 
       <h2>Cookies and analytics</h2>
