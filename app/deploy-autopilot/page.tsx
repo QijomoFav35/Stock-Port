@@ -1,7 +1,8 @@
 "use client";
 /** Dev only: deploy AutoPilot to Base from the connected wallet. Run `npm run autopilot:build` first. */
 import { useState } from "react";
-import { useAccount, useChainId, useWalletClient } from "wagmi";
+import { useAccount, useChainId, useConfig, useWalletClient } from "wagmi";
+import { getWalletClient } from "wagmi/actions";
 import { base } from "viem/chains";
 import type { Hex } from "viem";
 import ConnectButton from "@/components/ConnectButton";
@@ -10,15 +11,23 @@ import { publicClient } from "@/lib/publicClient";
 export default function DeployAutoPilot() {
   const { address } = useAccount();
   const chainId = useChainId();
-  const { data: wallet } = useWalletClient();
+  const { data: walletData } = useWalletClient();
+  const config = useConfig();
   const [out, setOut] = useState("");
   const [busy, setBusy] = useState(false);
 
   if (process.env.NODE_ENV !== "development") return <main style={{ padding: 40 }}>Not found.</main>;
 
   async function deploy() {
-    if (!wallet || !address) return;
     setBusy(true);
+    setOut("Getting your wallet ready…");
+    // The hook's client can be missing while the wallet is still reconnecting; ask wagmi for it directly.
+    const wallet = walletData ?? (await getWalletClient(config, { chainId: base.id }).catch(() => undefined));
+    if (!wallet || !address) {
+      setOut("Your wallet isn't ready. Refresh the page (Ctrl+Shift+R), connect again from the top right, then press Deploy.");
+      setBusy(false);
+      return;
+    }
     setOut("Loading bytecode…");
     try {
       const r = await fetch("/api/deploy-autopilot").then((x) => x.json());

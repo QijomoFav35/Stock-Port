@@ -22,10 +22,19 @@ function walletIcon(name: string): IconName {
 }
 
 export default function ConnectButton({ className = "", full = false }: { className?: string; full?: boolean }) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, status } = useAccount();
   const { connectors, connect, isPending, error } = useConnect();
-  const { disconnect } = useDisconnect();
+  const { disconnect, disconnectAsync } = useDisconnect();
   const [open, setOpen] = useState(false);
+
+  // A wallet can get stuck half-connected (status "reconnecting" with an address). Offer a clean reset.
+  if (!isConnected && address && (status === "reconnecting" || status === "connecting")) {
+    return (
+      <button onClick={() => disconnectAsync().catch(() => {}).finally(() => setOpen(true))} className={`btn btn-ghost btn-sm ${className}`}>
+        Reconnecting… tap to reset
+      </button>
+    );
+  }
 
   if (isConnected && address) {
     return (
@@ -97,7 +106,11 @@ export default function ConnectButton({ className = "", full = false }: { classN
           </p>
         </div>
       )}
-      {error && <p className="err" style={{ marginTop: 6, fontSize: 12 }}>{error.message.split("\n")[0]}</p>}
+      {error && (
+        <p className="err" style={{ marginTop: 6, fontSize: 12 }}>
+          {/already connected/i.test(error.message) ? "Your wallet is already connected. Refresh the page." : error.message.split("\n")[0]}
+        </p>
+      )}
     </div>
   );
 }
