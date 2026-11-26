@@ -10,6 +10,35 @@ import type { IconName } from "@/lib/icons";
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
+/** Wallets we list, in this order. Anything else an extension announces is hidden; WalletConnect covers the rest. */
+const WALLET_ORDER: { key: string; match: (id: string, name: string) => boolean }[] = [
+  { key: "base", match: (id, n) => id === "baseAccount" || /base account/i.test(n) },
+  { key: "metamask", match: (id, n) => id === "metaMask" || id === "io.metamask" || /metamask/i.test(n) },
+  { key: "coinbase", match: (id, n) => id === "com.coinbase.wallet" || /coinbase/i.test(n) },
+  { key: "rabby", match: (id, n) => id === "io.rabby" || /rabby/i.test(n) },
+  { key: "phantom", match: (id, n) => id === "app.phantom" || /phantom/i.test(n) },
+  { key: "rainbow", match: (id, n) => id === "me.rainbow" || /rainbow/i.test(n) },
+  { key: "trust", match: (id, n) => id === "com.trustwallet.app" || /trust wallet/i.test(n) },
+  { key: "okx", match: (id, n) => id === "com.okex.wallet" || /okx/i.test(n) },
+  { key: "zerion", match: (id, n) => id === "io.zerion.wallet" || /zerion/i.test(n) },
+  { key: "browser", match: (id) => id === "injected" },
+  { key: "walletconnect", match: (id) => id === "walletConnect" },
+];
+
+/** Popular wallets only, one entry each, in WALLET_ORDER. */
+function pickConnectors<T extends { id: string; name: string }>(all: readonly T[]): T[] {
+  const out: T[] = [];
+  for (const w of WALLET_ORDER) {
+    const found = all.filter((c) => w.match(c.id, c.name));
+    // Prefer the wallet's own EIP-6963 entry (it has the real icon and provider) over the generic one.
+    const best = found.find((c) => c.id.includes(".")) ?? found[0];
+    if (best) out.push(best);
+  }
+  // A generic "Browser wallet" is only useful when no named wallet was found.
+  const named = out.filter((c) => c.id !== "injected" && c.id !== "baseAccount" && c.id !== "walletConnect");
+  return named.length ? out.filter((c) => c.id !== "injected") : out;
+}
+
 function walletIcon(name: string): IconName {
   const n = name.toLowerCase();
   if (n.includes("base") || n.includes("coinbase")) return "w-coinbase";
@@ -65,7 +94,7 @@ export default function ConnectButton({ className = "", full = false }: { classN
           <div className="eyebrow" style={{ padding: "8px 12px" }}>
             Connect a wallet
           </div>
-          {connectors.map((c, i) => (
+          {pickConnectors(connectors).map((c, i) => (
             <button
               key={c.uid}
               onClick={() => {

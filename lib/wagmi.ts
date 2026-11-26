@@ -8,6 +8,8 @@ import { rpcUrl } from "@/lib/rpc";
  * Coinbase Wallet extension). Note: a `dataSuffix` set here would NOT reach connected-wallet txs
  * (wagmi #5248), so the Builder Code is attached per call in hooks/usePortBundle.ts.
  *
+ * Installed wallets are also found through EIP-6963; ConnectButton shows only the popular ones (WALLET_ORDER).
+ *
  * WalletConnect (QR code for phone wallets) turns on when NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
  * is set. Get a free project ID at dashboard.reown.com.
  */
@@ -19,6 +21,8 @@ export const config = createConfig({
   chains: [base],
   connectors: [
     baseAccount({ appName: "Stock Port", preference: { telemetry: false } }),
+    // MetaMask by name, so it shows even when another extension takes over window.ethereum.
+    injected({ target: "metaMask" }),
     injected(),
     ...(wcProjectId
       ? [
