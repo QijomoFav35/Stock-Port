@@ -24,6 +24,7 @@ const LINKS = [
   { href: "/baskets", label: "Baskets" },
   { href: "/sweep", label: "Sweep" },
   { href: "/race", label: "Race" },
+  { href: "/stats", label: "Stats" },
   { href: "/next", label: "What's next" },
 ];
 

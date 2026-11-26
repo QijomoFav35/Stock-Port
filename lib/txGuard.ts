@@ -37,6 +37,7 @@ export function contractName(addr: Address): string | undefined {
 }
 
 export const basescanAddress = (a: Address) => `https://basescan.org/address/${a}`;
+export const basescanTx = (h: string) => `https://basescan.org/tx/${h}`;
 
 const FORBIDDEN_SELECTORS = new Set(
   [
