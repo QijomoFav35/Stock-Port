@@ -11,7 +11,9 @@
     "check-routes": "node --env-file-if-exists=.env.local scripts/check-routes.mjs",
     "check-universe": "node --env-file-if-exists=.env.local scripts/check-universe.mjs",
     "guard:build": "npx -y solc@0.8.24 --optimize --bin --abi -o build contracts/LoanGuard.sol",
-    "guard:sim": "node scripts/simulate-guard.mjs"
+    "guard:sim": "node scripts/simulate-guard.mjs",
+    "autopilot:build": "npx -y solc@0.8.24 --optimize --bin --abi -o build contracts/AutoPilot.sol",
+    "autopilot:sim": "node scripts/simulate-autopilot.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.0",
