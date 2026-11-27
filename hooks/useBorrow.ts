@@ -4,18 +4,22 @@
  *
  * Borrow: [approve stock to the Spoke, supply, use as collateral (first time), borrow USDC to you].
  * Repay:  [approve USDC to the Spoke, repay, withdraw the stock back to you].
+ * Buy and borrow: [approve USDC to Aerodrome, buy each stock to you, approve + supply each stock's guaranteed
+ *   minimum to the Spoke, use as collateral, borrow USDC]. Anything above the minimum stays in your wallet.
  * One EIP-5792 atomic batch when the wallet supports it, otherwise sequential txs.
  * Every call is checked before the wallet opens: only the Aave Spoke or an exact approval to it,
  * only known reserves, and every position is the connected wallet's own.
  */
 import { useCallback, useEffect, useState } from "react";
-import { decodeFunctionData, encodeFunctionData, erc20Abi, isAddressEqual, type Address, type Hash, type Hex, type WalletClient } from "viem";
+import { decodeFunctionData, encodeFunctionData, erc20Abi, formatUnits, isAddressEqual, type Address, type Hash, type Hex, type WalletClient } from "viem";
 import { base } from "viem/chains";
 import { DATA_SUFFIX, requireDataSuffix, withBuilderCode } from "@/lib/attribution";
 import { publicClient } from "@/lib/publicClient";
 import { getBaseCapabilities, isUserRejection, shortError } from "@/lib/walletCaps";
 import { sendCallsCapabilities } from "@/lib/paymaster";
 import { USDC_BASE } from "@/lib/constants";
+import { checkApproval, checkSwapCall } from "@/lib/txGuard";
+import type { PortQuote } from "@/lib/basketQuote";
 import {
   AAVE_ORACLE,
   AAVE_SPOKE,
@@ -46,7 +50,8 @@ export type Account = {
 };
 export type Market = { usdcAvailable: number; borrowApy?: number; factors: Record<string, number> };
 export type BorrowStatus = "idle" | "confirming" | "pending" | "success" | "error";
-type SendCall = { to: Address; data: Hex; label: string };
+/** `checked`: a swap call already validated by lib/txGuard.ts (checkApproval / checkSwapCall). */
+type SendCall = { to: Address; data: Hex; label: string; checked?: true };
 
 const NOBODY = "0x0000000000000000000000000000000000000001" as Address;
 /** Interest accrues while you confirm, so a full repay sends the debt plus a little. If Aave doesn't cap it, the batch reverts and nothing moves. */
@@ -183,7 +188,7 @@ export function useBorrow(walletClient: WalletClient | undefined, account: Addre
         const geo = await fetch("/api/geo").then((r) => r.json()).catch(() => ({}));
         if (geo?.tradingBlocked) throw new Error("Borrowing is not available in your region.");
         const suffix = requireDataSuffix();
-        for (const c of calls) assertSafe(c, account);
+        for (const c of calls) if (!c.checked) assertSafe(c, account);
         if ((await walletClient.getChainId()) !== base.id) await walletClient.switchChain({ id: base.id });
 
         const caps = await getBaseCapabilities(walletClient, account);
@@ -269,6 +274,89 @@ export function useBorrow(walletClient: WalletClient | undefined, account: Addre
     [account, acct, market, send],
   );
 
+  /**
+   * Buy a stock (or a whole basket) with `spend` USDC, deposit it on Aave and borrow `amount` USDC.
+   * Aerodrome only, so each buy has a known minimum out; that minimum is what gets deposited.
+   */
+  const buyAndBorrow = useCallback(
+    async (p: { stock?: string; basketId?: string; spend: bigint; amount: bigint; slippageBps: number; attestNonUS: boolean }) => {
+      if (!account || !acct || !market || !rows) return;
+      setError(undefined);
+      try {
+        if (!p.attestNonUS) throw new Error("Please confirm you are not a US person");
+        setStatus("confirming");
+        setStep("Getting a price from Aerodrome");
+        const res = await fetch("/api/swap/quote", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            taker: account,
+            usdcAmount: formatUnits(p.spend, 6),
+            attestNonUS: true,
+            slippageBps: p.slippageBps,
+            provider: "aerodrome",
+            stock: p.stock,
+            basketId: p.stock ? undefined : p.basketId,
+          }),
+        });
+        const q = (await res.json()) as PortQuote & { error?: string; message?: string };
+        if (res.status === 451) throw new Error("Trading is not available in your region.");
+        if (!res.ok) throw new Error(q.message ?? q.error ?? "Quote failed");
+        if (q.provider !== "aerodrome") throw new Error("Only the Aerodrome route can be used for Buy and borrow.");
+        checkApproval(q.provider, q.approval, p.spend);
+        for (const c of q.calls) checkSwapCall(q.provider, c, account);
+
+        const usdc = await publicClient.readContract({ address: USDC_BASE, abi: erc20Abi, functionName: "balanceOf", args: [account] });
+        if (usdc < p.spend) throw new Error("Not enough USDC in your wallet.");
+
+        // Collateral we can count on: each leg's guaranteed minimum, on Aave stocks only.
+        const legs = q.legs.map((l) => ({ l, row: rows.find((r) => r.reserve.symbol === l.symbol), min: BigInt(l.minBuyAmount ?? "0") }));
+        if (legs.some((x) => !x.row || x.min === 0n)) throw new Error("One of these stocks can't be used as collateral on Aave.");
+        const addWeighted = legs.reduce((s, x) => s + (Number(x.min) / 1e8) * x.row!.price * (market.factors[x.l.symbol] ?? x.row!.reserve.collateralFactor), 0);
+        const addDebt = Number(p.amount) / 1e6;
+        if (addDebt > market.usdcAvailable) throw new Error("Not enough USDC left to borrow on Aave right now. Try a smaller amount.");
+        if (addDebt > 0 && healthAfter(acct, addWeighted, 1, addDebt) < MIN_HEALTH) {
+          throw new Error(`That would leave your health under ${MIN_HEALTH}. Borrow less or buy more.`);
+        }
+
+        const calls: SendCall[] = [];
+        if (q.approval) {
+          const allowance = await publicClient.readContract({ address: USDC_BASE, abi: erc20Abi, functionName: "allowance", args: [account, q.approval.spender] });
+          if (allowance < BigInt(q.approval.amount)) {
+            calls.push({
+              to: USDC_BASE,
+              data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [q.approval.spender, BigInt(q.approval.amount)] }),
+              label: "Approve USDC",
+              checked: true,
+            });
+          }
+        }
+        for (const c of q.calls) calls.push({ to: c.to, data: c.data, label: c.label, checked: true });
+        for (const { row, min } of legs) {
+          const r = row!.reserve;
+          calls.push({ to: r.token, data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [AAVE_SPOKE, min] }), label: `Approve ${r.symbol}` });
+          calls.push({ to: AAVE_SPOKE, data: encodeFunctionData({ abi: spokeAbi, functionName: "supply", args: [r.reserveId, min, account] }), label: `Deposit ${r.symbol}` });
+          if (!row!.usingAsCollateral) {
+            calls.push({
+              to: AAVE_SPOKE,
+              data: encodeFunctionData({ abi: spokeAbi, functionName: "setUsingAsCollateral", args: [r.reserveId, true, account] }),
+              label: `Use ${r.symbol} as collateral`,
+            });
+          }
+        }
+        if (p.amount > 0n) {
+          calls.push({ to: AAVE_SPOKE, data: encodeFunctionData({ abi: spokeAbi, functionName: "borrow", args: [USDC_RESERVE.reserveId, p.amount, account] }), label: "Borrow USDC" });
+        }
+        return send(calls, p.attestNonUS);
+      } catch (e) {
+        setStatus(isUserRejection(e) ? "idle" : "error");
+        setStep(undefined);
+        if (!isUserRejection(e)) setError(shortError(e));
+      }
+    },
+    [account, acct, market, rows, send],
+  );
+
   /** Repay all USDC debt, then withdraw this stock. */
   const repayAndWithdraw = useCallback(
     async (row: StockRow, attestNonUS: boolean) => {
@@ -304,5 +392,5 @@ export function useBorrow(walletClient: WalletClient | undefined, account: Addre
     setHashes([]);
   }, []);
 
-  return { rows, acct, market, loadError, borrow, repayAndWithdraw, status, step, error, hashes, reset, refresh, builderCodeConfigured: !!DATA_SUFFIX };
+  return { rows, acct, market, loadError, borrow, buyAndBorrow, repayAndWithdraw, status, step, error, hashes, reset, refresh, builderCodeConfigured: !!DATA_SUFFIX };
 }

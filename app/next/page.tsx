@@ -14,10 +14,10 @@ const ITEMS: Item[] = [
   { tag: "Live", title: "Themed baskets and Rotate", body: "Buy Mag 7, AI Bubble, Port Elon and more from $5, and rotate between them in one tx." },
   { tag: LOAN_GUARD ? "Live" : "Next", title: "Loan Guard", body: "A USDC reserve that pays down your Aave loan before liquidation, with a weekend shield for the Monday open. Repay-only contract, no owner, anyone can trigger it." },
   { tag: AUTOPILOT ? "Live" : "Next", title: "AutoPilot", body: "Program your bag: rotate into the 7-day leader, cut losers, pause for the weekend. Approve each move, or let the agent trade inside limits a no-owner contract enforces." },
-  { tag: "Next", title: "Buy and borrow in one tx", body: "Spend USDC on a stock, deposit it and borrow against it, all in one batch." },
-  { tag: "Soon", title: "Borrow from X", body: "Ask @bankrbot to open, top up or repay your Stock Port loan from a post." },
+  { tag: "Live", title: "Buy and borrow in one tx", body: "Spend USDC on a stock, deposit it and borrow against it, all in one confirm." },
+  { tag: "Live", title: "Basket collateral", body: "Buy the whole Mag 7, deposit all seven as one Aave position and borrow against it in one confirm." },
+  { tag: "Next", title: "Borrow from X", body: "Ask @bankrbot to open, top up or repay your Stock Port loan from a post." },
   { tag: "Soon", title: "Best-rate routing", body: "Send each loan to whichever lender on Base has the lower rate and the deeper USDC." },
-  { tag: "Soon", title: "Basket collateral", body: "Borrow against a whole basket in one position instead of one stock at a time." },
 ];
 
 const TAG_STYLE: Record<Item["tag"], { background: string; color: string }> = {

@@ -1,6 +1,6 @@
 /**
  * POST /api/swap/quote
- * Body: { taker, usdcAmount (decimal string, e.g. "10"), attestNonUS: true, slippageBps?, provider?, purpose?, basketId? }
+ * Body: { taker, usdcAmount (decimal string, e.g. "10"), attestNonUS: true, slippageBps?, provider?, purpose?, basketId?, stock? }
  * Returns the swap calls that buy the chosen basket (lib/baskets.ts) at its weights. Quoting, provider
  * fallback and the NAV drift guard live in lib/basketQuote.ts.
  * Geo: middleware.ts returns 451 for blocked countries. We re-check here (defense in depth).
@@ -12,6 +12,7 @@ import { GEO_HEADER, isTradingBlocked } from "@/lib/geo";
 import { MAX_PORT_USDC, MIN_DUST_PORT_USDC, MIN_PORT_USDC, USDC_DECIMALS } from "@/lib/constants";
 import { BASKET_IDS, getBasket } from "@/lib/baskets";
 import { RouteError, quoteBasketBuy } from "@/lib/basketQuote";
+import { STOCK_RESERVES } from "@/lib/aave";
 import { logAndMask } from "@/lib/safeError";
 
 export type { PortCall, PortQuote } from "@/lib/basketQuote";
@@ -26,6 +27,8 @@ const Body = z.object({
   provider: z.enum(["aerodrome", "o1", "0x"]).optional(),
   purpose: z.enum(["port", "dust"]).optional(),
   basketId: z.enum(BASKET_IDS).optional(),
+  /** Buy one stock instead of a basket (used by Buy and borrow). Must be an Aave V4 collateral stock. */
+  stock: z.enum(STOCK_RESERVES.map((r) => r.symbol) as [string, ...string[]]).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -36,7 +39,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "bad_request", issues: parsed.error.issues }, { status: 400 });
   }
-  const { usdcAmount, slippageBps, provider, purpose, basketId } = parsed.data;
+  const { usdcAmount, slippageBps, provider, purpose, basketId, stock } = parsed.data;
   const amt = Number(usdcAmount);
   const min = purpose === "dust" ? MIN_DUST_PORT_USDC : MIN_PORT_USDC;
   if (amt < min || amt > MAX_PORT_USDC) {
@@ -44,7 +47,7 @@ export async function POST(req: NextRequest) {
   }
   try {
     const quote = await quoteBasketBuy({
-      legs: getBasket(basketId).legs,
+      legs: stock ? [{ symbol: stock, weightBps: 10_000 }] : getBasket(basketId).legs,
       total: parseUnits(usdcAmount, USDC_DECIMALS),
       taker: getAddress(parsed.data.taker),
       slippageBps,
