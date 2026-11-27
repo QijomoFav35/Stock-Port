@@ -4,6 +4,9 @@ import BorrowCard from "@/components/BorrowCard";
 import GuardCard from "@/components/GuardCard";
 import GuardAgent from "@/components/GuardAgent";
 import GateHead from "@/components/GateHead";
+import BankrCard from "@/components/BankrCard";
+
+const SITE = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +34,11 @@ export default async function BorrowPage() {
         <div className="sec-narrow">
           <BorrowCard geoBlocked={geoBlocked} />
         </div>
+        {!geoBlocked && (
+          <div id="x" className="sec-narrow" style={{ marginTop: 24 }}>
+            <BankrCard site={SITE} />
+          </div>
+        )}
       </section>
 
       <section id="guard" className="wrap sec" style={{ paddingBottom: 64 }}>

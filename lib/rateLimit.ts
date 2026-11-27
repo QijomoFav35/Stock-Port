@@ -15,6 +15,7 @@ export const LIMITS: { prefix: string; perMinute: number }[] = [
   { prefix: "/api/guard/keeper", perMinute: 10 },
   { prefix: "/api/autopilot/run", perMinute: 10 },
   { prefix: "/api/feedback", perMinute: 5 },
+  { prefix: "/api/bankr", perMinute: 30 },
   { prefix: "/api/", perMinute: 120 },
 ];
 
