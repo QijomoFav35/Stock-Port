@@ -17,7 +17,6 @@ const ITEMS: Item[] = [
   { tag: "Live", title: "Buy and borrow in one tx", body: "Spend USDC on a stock, deposit it and borrow against it, all in one confirm." },
   { tag: "Live", title: "Basket collateral", body: "Buy the whole Mag 7, deposit all seven as one Aave position and borrow against it in one confirm." },
   { tag: "Next", title: "Borrow from X", body: "Ask @bankrbot to open, top up or repay your Stock Port loan from a post." },
-  { tag: "Soon", title: "Best-rate routing", body: "Send each loan to whichever lender on Base has the lower rate and the deeper USDC." },
 ];
 
 const TAG_STYLE: Record<Item["tag"], { background: string; color: string }> = {
