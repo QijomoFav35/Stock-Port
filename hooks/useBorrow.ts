@@ -19,6 +19,7 @@ import { getBaseCapabilities, isUserRejection, shortError } from "@/lib/walletCa
 import { sendCallsCapabilities } from "@/lib/paymaster";
 import { USDC_BASE } from "@/lib/constants";
 import { checkApproval, checkSwapCall } from "@/lib/txGuard";
+import { slipstreamRouterAbi } from "@/lib/aerodrome";
 import type { PortQuote } from "@/lib/basketQuote";
 import {
   AAVE_ORACLE,
@@ -182,6 +183,7 @@ export function useBorrow(walletClient: WalletClient | undefined, account: Addre
     async (calls: SendCall[], attestNonUS: boolean) => {
       setError(undefined);
       setHashes([]);
+      const out: Hash[] = [];
       try {
         if (!walletClient || !account) throw new Error("Connect a wallet first");
         if (!attestNonUS) throw new Error("Please confirm you are not a US person");
@@ -192,7 +194,6 @@ export function useBorrow(walletClient: WalletClient | undefined, account: Addre
         if ((await walletClient.getChainId()) !== base.id) await walletClient.switchChain({ id: base.id });
 
         const caps = await getBaseCapabilities(walletClient, account);
-        const out: Hash[] = [];
         if (caps.atomic && calls.length > 1) {
           setStatus("confirming");
           setStep("Confirm in your wallet");
@@ -214,6 +215,7 @@ export function useBorrow(walletClient: WalletClient | undefined, account: Addre
             setStep(`${c.label} (${i + 1}/${calls.length}): confirm in wallet`);
             const hash = await walletClient.sendTransaction({ account, chain: base, to: c.to, data: withBuilderCode(c.data) });
             out.push(hash);
+            setHashes([...out]);
             setStatus("pending");
             setStep(`${c.label}: waiting for confirmation`);
             const r = await publicClient.waitForTransactionReceipt({ hash });
@@ -226,8 +228,18 @@ export function useBorrow(walletClient: WalletClient | undefined, account: Addre
         refresh();
         return out;
       } catch (e) {
-        setStatus(isUserRejection(e) ? "idle" : "error");
         setStep(undefined);
+        // Some txs already went through (one-by-one wallets): say so, keep their links, refresh balances.
+        const sent = out.length;
+        if (sent > 0) {
+          setStatus("error");
+          setError(
+            `Stopped after ${sent} of ${calls.length} steps (${calls[sent]?.label ?? "next step"} didn't go through). The first ${sent} are done onchain: check your wallet below before trying again.`,
+          );
+          refresh();
+          return;
+        }
+        setStatus(isUserRejection(e) ? "idle" : "error");
         if (!isUserRejection(e)) setError(shortError(e));
       }
     },
@@ -305,12 +317,19 @@ export function useBorrow(walletClient: WalletClient | undefined, account: Addre
         if (q.provider !== "aerodrome") throw new Error("Only the Aerodrome route can be used for Buy and borrow.");
         checkApproval(q.provider, q.approval, p.spend);
         for (const c of q.calls) checkSwapCall(q.provider, c, account);
+        // Deposit what the checked swap calldata guarantees, not what the quote says, and spend exactly `spend`.
+        const swaps = q.calls.map((c) => decodeFunctionData({ abi: slipstreamRouterAbi, data: c.data }).args[0]);
+        if (swaps.reduce((t, x) => t + x.amountIn, 0n) !== p.spend) throw new Error("Stopped for your safety: the swaps don't add up to what you're spending.");
+        const minOf = (token: Address) => swaps.filter((x) => isAddressEqual(x.tokenOut, token)).reduce((t, x) => t + x.amountOutMinimum, 0n);
 
         const usdc = await publicClient.readContract({ address: USDC_BASE, abi: erc20Abi, functionName: "balanceOf", args: [account] });
         if (usdc < p.spend) throw new Error("Not enough USDC in your wallet.");
 
         // Collateral we can count on: each leg's guaranteed minimum, on Aave stocks only.
-        const legs = q.legs.map((l) => ({ l, row: rows.find((r) => r.reserve.symbol === l.symbol), min: BigInt(l.minBuyAmount ?? "0") }));
+        const legs = q.legs.map((l) => {
+          const row = rows.find((r) => r.reserve.symbol === l.symbol);
+          return { l, row, min: row ? minOf(row.reserve.token) : 0n };
+        });
         if (legs.some((x) => !x.row || x.min === 0n)) throw new Error("One of these stocks can't be used as collateral on Aave.");
         const addWeighted = legs.reduce((s, x) => s + (Number(x.min) / 1e8) * x.row!.price * (market.factors[x.l.symbol] ?? x.row!.reserve.collateralFactor), 0);
         const addDebt = Number(p.amount) / 1e6;

@@ -46,9 +46,9 @@ function AttestBox({ attest, setAttest }: { attest: boolean; setAttest: (v: bool
 function Result({ b }: { b: { status: string; hashes: string[]; error?: string } }) {
   return (
     <>
-      {b.status === "success" && (
+      {(b.status === "success" || b.hashes.length > 0) && (
         <div style={{ marginTop: 12, fontSize: 14 }}>
-          Done.{" "}
+          {b.status === "success" ? "Done." : "Sent so far:"}{" "}
           {b.hashes.map((h) => (
             <a key={h} href={`https://basescan.org/tx/${h}`} target="_blank" rel="noreferrer" style={{ marginRight: 8 }}>
               View tx
