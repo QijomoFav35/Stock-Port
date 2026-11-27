@@ -25,6 +25,7 @@ const READ_METHODS = new Set([
   "eth_getBlockByNumber",
   "eth_getBlockByHash",
 ]);
+const PUBLIC_RPC = "https://mainnet.base.org";
 const MAX_BODY = 256_000;
 const MAX_BATCH = 20;
 
@@ -32,7 +33,7 @@ type RpcReq = { jsonrpc?: unknown; id?: unknown; method?: unknown; params?: unkn
 const rpcError = (id: unknown, code: number, message: string) => ({ jsonrpc: "2.0", id: id ?? null, error: { code, message } });
 
 export async function POST(req: NextRequest) {
-  const upstream = process.env.BASE_RPC_URL || "https://mainnet.base.org";
+  const upstream = process.env.BASE_RPC_URL || PUBLIC_RPC;
   const raw = await req.text();
   if (raw.length > MAX_BODY) return NextResponse.json(rpcError(null, -32600, "Request too large"), { status: 413 });
   let body: RpcReq | RpcReq[];
@@ -50,14 +51,23 @@ export async function POST(req: NextRequest) {
     if (c.params !== undefined && !Array.isArray(c.params)) return NextResponse.json(rpcError(c.id, -32602, "Invalid params"), { status: 400 });
   }
   const clean = calls.map((c) => ({ jsonrpc: "2.0", id: c.id ?? 1, method: c.method, params: c.params ?? [] }));
-  try {
-    const res = await fetch(upstream, {
+  const payload = JSON.stringify(Array.isArray(body) ? clean : clean[0]);
+  const send = (url: string) =>
+    fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(Array.isArray(body) ? clean : clean[0]),
+      body: payload,
       signal: AbortSignal.timeout(20_000),
       cache: "no-store",
     });
+  try {
+    let res = await send(upstream).catch(() => undefined);
+    // Key refused, rate-limited or down: fall back to the public Base RPC so reads keep working.
+    if ((!res || !res.ok) && upstream !== PUBLIC_RPC) {
+      console.warn(`[rpc] primary RPC failed (${res?.status ?? "network"}), using public RPC`);
+      res = await send(PUBLIC_RPC);
+    }
+    if (!res) throw new Error("no response");
     const text = await res.text();
     return new NextResponse(text, { status: res.status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
   } catch (e) {

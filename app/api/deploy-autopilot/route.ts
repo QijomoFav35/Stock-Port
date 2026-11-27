@@ -78,7 +78,8 @@ export async function GET() {
     factory = await retry(() => routerFactory());
     spacings = (await retry(() => publicClient.readContract({ address: factory, abi, functionName: "tickSpacings" }))).map(Number);
   } catch (e) {
-    return NextResponse.json({ error: `Can't read Base right now. Check BASE_RPC_URL in .env.local.\n${(e as Error).message.slice(0, 200)}` }, { status: 502 });
+    console.error("[deploy-autopilot] RPC failed", (e as Error).message.split("\n")[0]);
+    return NextResponse.json({ error: "Can't read Base right now (both BASE_RPC_URL and the public RPC failed). Try again in a minute." }, { status: 502 });
   }
 
   const tokens = await resolveSymbols([...UNIVERSE]);
@@ -119,7 +120,7 @@ export async function GET() {
       }
       rows.push({ symbol: t.symbol, token, feed, tickSpacing: pool.tickSpacing, poolUsdc: Number(pool.usdc / 1_000_000n) });
     } catch (e) {
-      skipped.push(`${t.symbol} (read failed: ${(e as Error).message.split("\n")[0].slice(0, 80)})`);
+      skipped.push(`${t.symbol} (read failed: ${(e as Error).message.split("\n")[0].replace(/https?:\/\/\S+/g, "[rpc]").slice(0, 80)})`);
     }
   }
   if (!rows.length) return NextResponse.json({ error: `No stocks with a NAV feed and a healthy pool found.\n${skipped.join("\n")}` }, { status: 502 });
