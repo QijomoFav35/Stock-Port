@@ -44,7 +44,7 @@ export default function DeployGuard() {
       const contractAddress = getContractAddress({ opcode: "CREATE2", from: CREATE2_FACTORY, salt, bytecode });
       const hash = await wallet.sendTransaction({ account: address, chain: base, to: CREATE2_FACTORY, data: concat([salt, bytecode]) });
       setOut(`Sent ${hash}. Waiting for the receipt…`);
-      const rec = await publicClient.waitForTransactionReceipt({ hash });
+      const rec = await publicClient.waitForTransactionReceipt({ hash, timeout: 300_000, pollingInterval: 2_000 });
       const code = rec.status === "success" ? await publicClient.getCode({ address: contractAddress }) : undefined;
       if (!code || code === "0x") throw new Error(`Deploy failed in tx ${hash}`);
       setOut(
