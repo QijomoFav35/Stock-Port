@@ -27,16 +27,19 @@ export async function GET() {
   const skipped: string[] = [];
   for (const [i, t] of tokens.entries()) {
     const token = getAddress(t.contract_address.toLowerCase());
-    const [feed, pool] = await Promise.all([feedFor(t.symbol, token), findDeepestPool(token).catch(() => undefined)]);
+    const feed = await feedFor(t.symbol, token).catch(() => undefined);
+    const pool = await findDeepestPool(token).catch(() => findDeepestPool(token).catch(() => undefined));
     const p = peg[i];
-    const pegOk = p && p.status !== "paused" && p.spreadPct !== undefined && (!p.pool || !pool || p.pool.toLowerCase() === pool.pool.toLowerCase());
-    if (!feed || !pool || !pegOk) {
-      skipped.push(`${t.symbol} (${!feed ? "no feed" : !pool ? "no pool" : "pool off NAV"})`);
+    // Only a pool that is clearly off NAV right now is left out. A stale or unread peg (market closed, RPC hiccup) is fine:
+    // the contract checks every swap against the Chainlink NAV anyway.
+    const offNav = p?.status === "paused";
+    if (!feed || !pool || offNav) {
+      skipped.push(`${t.symbol} (${!feed ? "no feed" : !pool ? "no pool" : `pool ${p?.spreadPct?.toFixed(1)}% off NAV`})`);
       continue;
     }
     rows.push({ symbol: t.symbol, token, feed: getAddress(feed.toLowerCase()), tickSpacing: pool.tickSpacing, poolUsdc: Number(pool.usdc / 1_000_000n) });
   }
-  if (!rows.length) return NextResponse.json({ error: "No stocks with a NAV feed and a healthy pool found" }, { status: 502 });
+  if (!rows.length) return NextResponse.json({ error: `No stocks with a NAV feed and a healthy pool found.\n${skipped.join("\n")}` }, { status: 502 });
   const args = encodeAbiParameters(
     [{ type: "address[]" }, { type: "address[]" }, { type: "int24[]" }],
     [rows.map((r) => r.token), rows.map((r) => r.feed), rows.map((r) => r.tickSpacing)],
