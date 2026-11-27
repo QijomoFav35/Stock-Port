@@ -28,7 +28,7 @@ const Query = z.object({
 const CORS = { "access-control-allow-origin": "*", "cache-control": "no-store" };
 
 export async function GET(req: NextRequest) {
-  // A browser visit from a blocked region (has a referer from a page) is refused like any trade route.
+  // A browser (it sends sec-fetch-mode) in a blocked region is refused like any trade route.
   if (isTradingBlocked(req.headers.get(GEO_HEADER)) && req.headers.get("sec-fetch-mode")) {
     return NextResponse.json({ ok: false, error: "geo_blocked", message: "Not available in the US, UK or other restricted regions." }, { status: 451, headers: CORS });
   }
